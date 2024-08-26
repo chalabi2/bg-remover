@@ -1,36 +1,45 @@
-This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# bg-remover
+
+***Inspired by a [tweet](https://x.com/t3dotgg/status/1828024167431836024) from [@t3dotgg](https://x.com/t3dotgg)***
+
 
 ## Getting Started
 
-First, run the development server:
-
+### Clone the repository
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone https://github.com/chalabi2/bg-remover.git
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Frontend
+Nextjs app with shadcn/ui, queries the backend for image processing.
 
-This project uses [`next/font`](https://nextjs.org/docs/basic-features/font-optimization) to automatically optimize and load Inter, a custom Google Font.
+#### Dependencies
+- Node.js
+- npm
 
-## Learn More
+#### Development
+```bash
+cd frontend 
+npm install
+cp .env.example .env
+npm run dev
+```
+---
+### Backend
+Flask app with a pipeline from Huggingface.
 
-To learn more about Next.js, take a look at the following resources:
+#### Dependencies
+- Python
+- pip
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+#### Development
+```bash
+cd backend
+venv\Scripts\activate ## or on mac source venv/bin/activate
+pip install -qr https://huggingface.co/briaai/RMBG-1.4/resolve/main/requirements.txt
+pip install -r requirements.txt
+flask run
+```
+---
