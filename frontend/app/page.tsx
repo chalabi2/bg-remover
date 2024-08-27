@@ -78,7 +78,7 @@ export default function Home() {
       formData.append('image', image.file)
 
       try {
-        const response = await fetch('https://api.jchalabi.xyz', {
+        const response = await fetch('/api', {
           method: 'POST',
           body: formData,
         });

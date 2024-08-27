@@ -9,7 +9,7 @@ from functools import lru_cache
 import math
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": ["https://rmbg.jchalabi.xyz"]}})
+CORS(app, resources={r"/*": {"origins": ["https://rmbg.jchalabi.xyz", "https://api.jchalabi.xyz"]}})
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -72,7 +72,7 @@ if __name__ == '__main__':
     import os
     if os.environ.get('FLASK_ENV') == 'production':
         # Production
-        app.run(host='0.0.0.0')
+       app.run(host='0.0.0.0', debug=True, port=5000)
     else:
         # Development
         app.run(host='0.0.0.0', debug=True, port=5000)

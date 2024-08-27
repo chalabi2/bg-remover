@@ -13,10 +13,11 @@
 
 [http.middlewares]
   [http.middlewares.cors.headers]
-    accessControlAllowOriginList = ["https://rmbg.jchalabi.xyz"]
+    accessControlAllowOriginList = ["https://rmbg.jchalabi.xyz", "https://api.jchalabi.xyz"]
     accessControlAllowMethods = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
     accessControlAllowHeaders = ["Origin", "Content-Type", "Accept"]
     accessControlAllowCredentials = true
+
 
 [http.routers.bg-remover.middlewares]
   middlewares = ["cors"]

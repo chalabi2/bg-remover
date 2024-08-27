@@ -18,6 +18,18 @@ certificatesResolvers:
       storage: "/letsencrypt/acme.json"
       tlsChallenge: {}
 
+http:
+  middlewares:
+    testHeader:
+      headers:
+        accessControlAllowMethods:
+          - GET
+          - OPTIONS
+          - PUT
+        accessControlAllowOrigin: "*"
+        accessControlMaxAge: 100
+        addVaryHeader: true
+
 providers:
   file:
     directory: "/etc/traefik/dynamic_conf"
