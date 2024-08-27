@@ -69,4 +69,10 @@ def remove_background():
         return 'Error processing image', 500
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', debug=False, port=5000)
+    import os
+    if os.environ.get('FLASK_ENV') == 'production':
+        # Production
+        app.run(host='0.0.0.0')
+    else:
+        # Development
+        app.run(host='0.0.0.0', debug=True, port=5000)
