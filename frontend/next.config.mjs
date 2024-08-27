@@ -20,6 +20,10 @@ const nextConfig = {
   async rewrites() {
     return [
       {
+        source: '/api/auth/:path*',
+        destination: '/api/auth/:path*',
+      },
+      {
         source: '/api/:path*',
         destination: 'https://api.jchalabi.xyz/:path*',
       },
