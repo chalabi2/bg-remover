@@ -19,4 +19,4 @@
     accessControlAllowCredentials = true
 
 [http.routers.bg-remover.middlewares]
-  - "cors"
+  middlewares = ["cors"]

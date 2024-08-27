@@ -78,10 +78,10 @@ export default function Home() {
       formData.append('image', image.file)
 
       try {
-        const response = await fetch('/api/remove-background', {
+        const response = await fetch('https://api.jchalabi.xyz', {
           method: 'POST',
           body: formData,
-        })
+        });
 
         if (response.ok) {
           const blob = await response.blob()

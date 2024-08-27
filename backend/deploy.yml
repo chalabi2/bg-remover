@@ -3,7 +3,7 @@ version: "2.0"
 
 services:
   bg-remover:
-    image: chandrastation/bg-remover-backend:v1.0.3
+    image: chandrastation/bg-remover-backend:v1.0.4
     expose:
       - port: 5000
         as: 5000

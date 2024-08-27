@@ -9,7 +9,7 @@ from functools import lru_cache
 import math
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": ["https://rmbg.jchalabi.xyz", "https://api.rmbg.jchalabi.xyz"]}})
+CORS(app, resources={r"/*": {"origins": ["https://rmbg.jchalabi.xyz"]}})
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
