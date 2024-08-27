@@ -22,7 +22,7 @@ services:
         to:
           - global: true
     env:
-      - DOMAIN=rmbg.jchalabi.xyz
+      - DOMAIN=rmbg.jchalabi.xyz,api.rmbg.jchalabi.xyz
     volumes:
       - name: letsencrypt
         mount_path: /letsencrypt

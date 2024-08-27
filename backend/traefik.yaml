@@ -3,7 +3,9 @@ entryPoints:
     address: ":80"
   websecure:
     address: ":443"
-
+  api:
+    address: ":8080"
+    
 certificatesResolvers:
   myresolver:
     acme:

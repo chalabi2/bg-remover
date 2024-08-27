@@ -17,7 +17,7 @@ const nextConfig = {
     return [
       {
         source: '/api/:path*',
-        destination: 'https://rmbg.jchalabi.xyz/api/:path*',
+        destination: 'https://api.rmbg.jchalabi.xyz/:path*',
       },
     ]
   },
