@@ -190,7 +190,7 @@ export default function Home() {
               {isDragActive ? (
                 <p className="text-xl">Drop the files here ...</p>
               ) : (
-                <p className="text-xl">Drag 'n' drop some files here, or click to select files</p>
+                <p className="text-xl">Drag &apos;n&apos; drop some files here, or click to select files</p>
               )}
             </CardContent>
           </Card>
