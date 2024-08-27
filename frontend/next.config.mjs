@@ -6,8 +6,20 @@ const nextConfig = {
         protocol: 'http',
         hostname: 'localhost',
       },
+      {
+        protocol: 'https',
+        hostname: 'rmbg.jchalabi.xyz',
+      },
     ],
-    domains: ['localhost'],
+    domains: ['localhost', 'rmbg.jchalabi.xyz'],
+  },
+  async rewrites() {
+    return [
+      {
+        source: '/api/:path*',
+        destination: 'https://rmbg.jchalabi.xyz/api/:path*',
+      },
+    ]
   },
 }
 
