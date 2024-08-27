@@ -1,0 +1,20 @@
+[http]
+  [http.routers]
+    [http.routers.bg-remover]
+      rule = "Host(`rmbg.jchalabi.xyz`) && PathPrefix(`/remove-background`)"
+      service = "bg-remover"
+      entryPoints = ["websecure"]
+      [http.routers.bg-remover.tls]
+        certResolver = "myresolver"
+
+  [http.services]
+    [http.services.bg-remover.loadBalancer]
+      [[http.services.bg-remover.loadBalancer.servers]]
+        url = "http://bg-remover:5000"
+
+  [http.middlewares]
+    [http.middlewares.strip-prefix.stripPrefix]
+      prefixes = ["/remove-background"]
+
+  [http.routers.bg-remover.middlewares]
+    - "strip-prefix"

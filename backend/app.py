@@ -9,7 +9,7 @@ from functools import lru_cache
 import math
 
 app = Flask(__name__)
-CORS(app, resources={r"/remove-background": {"origins": "http://localhost:3000"}})
+CORS(app, resources={r"/*": {"origins": "https://rmbg.jchalabi.xyz"}})
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -45,7 +45,7 @@ def smart_resize(img, max_size=1920, max_area=2073600):  # 1920x1080 = 2,073,600
         new_width = int(new_height * aspect_ratio)
     return img.resize((new_width, new_height), Image.LANCZOS)
 
-@app.route('/remove-background', methods=['POST'])
+@app.route('/', methods=['POST'])
 def remove_background():
     try:
         if 'image' not in request.files:
@@ -60,7 +60,7 @@ def remove_background():
         
         # Save the result
         img_io = io.BytesIO()
-        result.save(img_io, 'PNG', optimize=True, quality=85)
+        result.save(img_io, 'PNG', optimize=True, quality=100)
         img_io.seek(0)
         
         return send_file(img_io, mimetype='image/png')
@@ -69,4 +69,4 @@ def remove_background():
         return 'Error processing image', 500
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(host='0.0.0.0', debug=False, port=5000)

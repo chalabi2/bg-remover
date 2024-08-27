@@ -1,0 +1,22 @@
+entryPoints:
+  web:
+    address: ":80"
+  websecure:
+    address: ":443"
+
+certificatesResolvers:
+  myresolver:
+    acme:
+      email: "chalabi.joseph@gmail.com"
+      storage: "/letsencrypt/acme.json"
+      tlsChallenge: {}
+
+providers:
+  file:
+    directory: "/etc/traefik/dynamic_conf"
+
+api:
+  insecure: true
+
+log:
+  level: DEBUG

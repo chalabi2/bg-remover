@@ -1,0 +1,78 @@
+---
+version: "2.0"
+
+services:
+  bg-remover:
+    image: chandrastation/bg-remover-backend:v1.0.1
+    expose:
+      - port: 5000
+        as: 5000
+        to:
+          - global: true
+
+  traefik:
+    image: traefik:v2.5
+    expose:
+      - port: 80
+        as: 80
+        to:
+          - global: true
+      - port: 443
+        as: 443
+        to:
+          - global: true
+    env:
+      - DOMAIN=rmbg.jchalabi.xyz
+    volumes:
+      - name: letsencrypt
+        mount_path: /letsencrypt
+      - name: traefik-config
+        mount_path: /etc/traefik
+
+profiles:
+  compute:
+    bg-remover:
+      resources:
+        cpu:
+          units: 4
+        memory:
+          size: 8Gi
+        storage:
+          - size: 10Gi
+        gpu:
+          units: 1
+          attributes:
+            vendor:
+              nvidia: 
+    traefik:
+      resources:
+        cpu:
+          units: 1
+        memory:
+          size: 1Gi
+        storage:
+          - size: 1Gi
+  placement:
+    akash:
+      pricing:
+        bg-remover:
+          denom: uakt
+          amount: 1000
+        traefik:
+          denom: uakt
+          amount: 100
+      signedBy:
+        anyOf:
+          - akash1365yvmc4s7awdyj3n2sav7xfx76adc6dnmlx63
+      attributes:
+        host: akash
+
+deployment:
+  bg-remover:
+    akash:
+      profile: bg-remover
+      count: 1
+  traefik:
+    akash:
+      profile: traefik
+      count: 1
