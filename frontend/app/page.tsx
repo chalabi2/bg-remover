@@ -28,6 +28,17 @@ function LandingPage() {
       <h1 className="text-4xl font-bold mb-6">Welcome to bg-remover</h1>
       <p className="text-xl mb-8">Remove backgrounds from your images with ease.</p>
       <AuthButtons />
+      <div className="absolute bottom-4 right-4 flex flex-col items-center justify-center gap-4">
+      <h1 className="text-2xl font-light">Powered by</h1>
+      <Image 
+          src="/akash.svg" 
+          alt="bg-remover" 
+          width={200} 
+          height={200} 
+          priority
+        />
+      </div>
+     
     </div>
   )
 }
