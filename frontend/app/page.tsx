@@ -172,7 +172,7 @@ export default function Home() {
     <>
       <header className="sticky top-0 z-10 bg-background shadow-md">
         <div className="container mx-auto p-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold">bg-remover</h1>
+          <h1 className="text-2xl font-bold">rm-bg</h1>
           <div className="flex items-center space-x-4">
             <AuthButtons />
             <Button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
@@ -195,35 +195,39 @@ export default function Home() {
             </CardContent>
           </Card>
         )}
-
-        {images.length > 0 && (
-          <div className="mb-4 flex flex-wrap gap-2">
-            <Button 
-              onClick={() => processImages(images.filter(img => img.isSelected && !img.processed))}
-              disabled={isLoading || selectedCount === 0 || images.every(img => img.processed)}
-            >
-              {isLoading ? 'Processing...' : `Process Selected (${selectedCount})`}
-            </Button>
-            <Button 
-              onClick={downloadSelectedImages}
-              disabled={images.filter(img => img.isSelected && img.processed).length === 0}
-            >
-              Download Selected ({images.filter(img => img.isSelected && img.processed).length})
-            </Button>
-            <Button 
-              onClick={processAllImages}
-              disabled={isLoading || unprocessedCount === 0}
-            >
-              Process All ({unprocessedCount})
-            </Button>
-            <Button 
-              onClick={downloadAllProcessedImages}
-              disabled={processedCount === 0}
-            >
-              Download All ({processedCount})
-            </Button>
-          </div>
+{images.length > 0 && (
+  <div className="mb-4 flex flex-wrap gap-2 bg-gray-100/10 p-4 rounded-lg min-h-20 items-center justify-start">
+    {selectedCount === 0 ? (
+      <>
+        <Button 
+          onClick={processAllImages}
+          disabled={isLoading || processedCount === images.length}
+        >
+          {isLoading ? 'Processing...' : `Process All (${images.length - processedCount})`}
+        </Button>
+        {processedCount > 0 && (
+          <Button onClick={downloadAllProcessedImages}>
+            Download All ({processedCount})
+          </Button>
         )}
+      </>
+    ) : (
+      <>
+        <Button 
+          onClick={() => processImages(images.filter(img => img.isSelected && !img.processed))}
+          disabled={isLoading || images.every(img => img.processed)}
+        >
+          {isLoading ? 'Processing...' : `Process Selected (${selectedCount})`}
+        </Button>
+        {images.filter(img => img.isSelected && img.processed).length > 0 && (
+          <Button onClick={downloadSelectedImages}>
+            Download Selected ({images.filter(img => img.isSelected && img.processed).length})
+          </Button>
+        )}
+      </>
+    )}
+  </div>
+)}
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <AnimatePresence>
@@ -254,13 +258,15 @@ export default function Home() {
                       />
                     </div>
                   </CardContent>
-                  <CardFooter className="flex justify-between">
-                    <Button 
-                      onClick={() => processImages([image])} 
-                      disabled={isLoading || !!image.processed}
-                    >
-                      {isLoading ? 'Processing' : image.processed ? 'Processed' : 'Remove Background'}
-                    </Button>
+                  <CardFooter className="flex justify-end">
+                    {!image.processed && (
+                      <Button 
+                        onClick={() => processImages([image])} 
+                        disabled={isLoading}
+                      >
+                        {isLoading ? 'Processing...' : 'Remove Background'}
+                      </Button>
+                    )}
                     {image.processed && (
                       <Button asChild variant="secondary">
                         <a href={image.processed} download={`processed_${image.id}.png`}>
