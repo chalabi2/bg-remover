@@ -1,9 +1,24 @@
 FROM --platform=linux/amd64 python:3.9-slim
+
 WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements file
 COPY requirements.txt .
+
+# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir gevent
+
+# Copy the application code
 COPY . .
-COPY dynamic_conf.toml /etc/traefik/dynamic_conf/dynamic_conf.toml
-COPY traefik.yaml /etc/traefik/traefik.yaml
+
+# Expose the port the app runs on
 EXPOSE 5000
-CMD ["python", "app.py"]
+
+# Run the application with Gunicorn
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "4", "--worker-class", "gevent", "app:app"]

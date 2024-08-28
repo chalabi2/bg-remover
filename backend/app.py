@@ -7,6 +7,9 @@ from transformers import pipeline
 import logging
 from functools import lru_cache
 import math
+import sys
+import os
+
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": ["https://rmbg.jchalabi.xyz", "https://api.jchalabi.xyz"]}})
@@ -45,6 +48,15 @@ def smart_resize(img, max_size=1920, max_area=2073600):  # 1920x1080 = 2,073,600
         new_width = int(new_height * aspect_ratio)
     return img.resize((new_width, new_height), Image.LANCZOS)
 
+@app.before_request
+def log_request_info():
+    app.logger.info('Headers: %s', request.headers)
+    app.logger.info('Body: %s', request.get_data())
+
+@app.route('/', methods=['GET'])
+def health_check():
+    return 'OK', 200
+    
 @app.route('/', methods=['POST'])
 def remove_background():
     try:
@@ -67,12 +79,51 @@ def remove_background():
     except Exception as e:
         logger.error(f"Error processing image: {str(e)}")
         return 'Error processing image', 500
+    
+app.debug = False
+
+def run_dev_server():
+    app.run(host='0.0.0.0', debug=True, port=5000)
+
+def run_gunicorn_server(workers=4):
+    import gunicorn.app.base
+
+    class StandaloneApplication(gunicorn.app.base.BaseApplication):
+        def __init__(self, app, options=None):
+            self.options = options or {}
+            self.application = app
+            super().__init__()
+
+        def load_config(self):
+            for key, value in self.options.items():
+                if key in self.cfg.settings and value is not None:
+                    self.cfg.set(key.lower(), value)
+
+        def load(self):
+            return self.application
+
+    options = {
+        'bind': '0.0.0.0:5000',
+        'workers': workers,
+        'worker_class': 'gevent'
+    }
+    StandaloneApplication(app, options).run()
 
 if __name__ == '__main__':
-    import os
-    if os.environ.get('FLASK_ENV') == 'production':
-        # Production
-       app.run(host='0.0.0.0', debug=True, port=5000)
+    import argparse
+
+    parser = argparse.ArgumentParser(description='Run the Flask app')
+    parser.add_argument('--mode', choices=['dev', 'local', 'production'], default='dev',
+                        help='Run mode: dev (default), local (Gunicorn), or production')
+    args = parser.parse_args()
+
+    if sys.platform.startswith('win'):
+        # On Windows, always use the development server
+        logger.info("Running on Windows. Using development server.")
+        run_dev_server()
     else:
-        # Development
-        app.run(host='0.0.0.0', debug=True, port=5000)
+        if args.mode == 'dev':
+            run_dev_server()
+        elif args.mode in ['local', 'production']:
+            workers = 4 if args.mode == 'local' else os.cpu_count() * 2 + 1
+            run_gunicorn_server(workers)
