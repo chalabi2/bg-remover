@@ -1,9 +1,13 @@
+// Use NEXT_PUBLIC_API_BASE_URL for runtime config in Next.js
+// Get API base URL from NEXT_PUBLIC_API_BASE_URL if set, otherwise use default
+const prodBaseUrl = typeof window !== 'undefined' && (window as any).NEXT_PUBLIC_API_BASE_URL
+  ? (window as any).NEXT_PUBLIC_API_BASE_URL
+  : 'https://backend.rmbg.jchalabi.xyz';
+
 // API Configuration
 export const config = {
   api: {
-    baseUrl: process.env.NODE_ENV === 'production' 
-      ? 'http://asus-3.duckdns.org:5000'  // Production: DuckDNS domain (HTTP)
-      : 'http://localhost:5000',           // Development: localhost
+    baseUrl: prodBaseUrl,
     
     endpoints: {
       removeBackground: '/remove-background',
