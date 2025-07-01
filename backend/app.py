@@ -7,19 +7,17 @@ from transformers import pipeline
 import logging
 from functools import lru_cache, wraps
 import math
-<<<<<<< Updated upstream
+import threading
+import queue
+import time
+import uuid
+from datetime import datetime, timedelta
+
 import sys
 import os
-from concurrent.futures import ThreadPoolExecutor
 import zipfile
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": ["https://rmbg.jchalabi.xyz", "https://api.jchalabi.xyz"]}})
-=======
-import os
-
-app = Flask(__name__)
->>>>>>> Stashed changes
 
 # Domain-based access control
 ALLOWED_DOMAINS = ["rmbg.jchalabi.xyz", "asus-3.duckdns.org"]
@@ -47,7 +45,7 @@ def require_domain(f):
         else:
             # Log unauthorized access attempts
             logger.warning(f"Unauthorized access attempt from origin: {origin}, referer: {referer}")
-            abort(403, description=f"Access denied. Only requests from {', '.join(ALLOWED_DOMAINS)} are allowed.")
+            abort(403, description=f"Access denied")
     
     return decorated_function
 
@@ -81,23 +79,86 @@ else:
     device = torch.device("cpu")
     logger.info("CUDA is not available. Using CPU.")
 
-# Determine the number of workers based on available CPU cores
-num_workers = os.cpu_count() or 1
-logger.info(f"Number of workers: {num_workers}")
-@lru_cache(maxsize=1)
+# Global model instance - loaded lazily
+_model = None
+_model_lock = threading.Lock()
+
+# Queue system for handling multiple requests
+request_queue = queue.Queue()
+processing_lock = threading.Lock()
+is_processing = False
+
+class ProcessingRequest:
+    def __init__(self, request_id, files, callback):
+        self.request_id = request_id
+        self.files = files
+        self.callback = callback
+        self.created_at = datetime.now()
+        self.status = "queued"
+
 def get_model():
-    model = pipeline("image-segmentation", 
-                     model="briaai/RMBG-1.4", 
-                     trust_remote_code=True, 
-                     device=device,
-                     torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32)
-    logger.info(f"Model loaded on device: {model.device}")
-    return model
+    """Get or initialize the model with thread safety"""
+    global _model
+    with _model_lock:
+        if _model is None:
+            logger.info("Initializing model...")
+            # Use float32 for consistency to avoid dtype mismatches
+            _model = pipeline("image-segmentation", 
+                            model="briaai/RMBG-1.4", 
+                            trust_remote_code=True, 
+                            device=device,
+                            torch_dtype=torch.float32)
+            logger.info(f"Model loaded on device: {_model.device}")
+    return _model
 
-pipe = get_model()
+def queue_processor():
+    """Background thread to process requests from the queue"""
+    global is_processing
+    
+    while True:
+        try:
+            # Get request from queue
+            request = request_queue.get(timeout=1)
+            
+            with processing_lock:
+                is_processing = True
+            
+            logger.info(f"Processing request {request.request_id}")
+            request.status = "processing"
+            
+            # Process the request
+            try:
+                results = []
+                for file in request.files:
+                    result = process_image_safe(file)
+                    results.append(result)
+                
+                # Call the callback with results
+                request.callback(results, None)
+                request.status = "completed"
+                logger.info(f"Completed request {request.request_id}")
+                
+            except Exception as e:
+                logger.error(f"Error processing request {request.request_id}: {str(e)}")
+                request.callback(None, str(e))
+                request.status = "failed"
+            
+            finally:
+                with processing_lock:
+                    is_processing = False
+                request_queue.task_done()
+                
+        except queue.Empty:
+            # No requests in queue, continue waiting
+            continue
+        except Exception as e:
+            logger.error(f"Error in queue processor: {str(e)}")
+            time.sleep(1)
 
-# Create a thread pool for parallel processing
-executor = ThreadPoolExecutor(max_workers=num_workers)
+# Start the queue processor thread
+queue_thread = threading.Thread(target=queue_processor, daemon=True)
+queue_thread.start()
+logger.info("Queue processor thread started")
 
 def smart_resize(img, max_size=1920, max_area=2073600):  # 1920x1080 = 2,073,600 pixels
     width, height = img.size
@@ -112,60 +173,104 @@ def smart_resize(img, max_size=1920, max_area=2073600):  # 1920x1080 = 2,073,600
         new_width = int(new_height * aspect_ratio)
     return img.resize((new_width, new_height), Image.LANCZOS)
 
-<<<<<<< Updated upstream
-@app.before_request
-def log_request_info():
-    app.logger.info('Headers: %s', request.headers)
-    app.logger.info('Body: %s', request.get_data())
+def process_image_safe(file):
+    """Process a single image with thread safety"""
+    try:
+        # Load and prepare image
+        img = Image.open(file.stream).convert("RGB")
+        img = smart_resize(img)
+        
+        # Get model and process image with thread safety
+        model = get_model()
+        with _model_lock:
+            result = model(img)
+        
+        # Save result
+        img_io = io.BytesIO()
+        result.save(img_io, 'PNG', optimize=True, quality=95)
+        img_io.seek(0)
+        
+        logger.info(f"Processed image: {file.filename}, size: {img.size}")
+        return img_io
+        
+    except Exception as e:
+        logger.error(f"Error processing image {file.filename}: {str(e)}")
+        raise
 
-@app.route('/', methods=['GET'])
-def health_check():
-    return 'OK', 200
-    
-@app.route('/', methods=['POST'])
-=======
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint for production monitoring - accessible from anywhere"""
-    return {'status': 'healthy', 'gpu_available': torch.cuda.is_available()}, 200
+    queue_size = request_queue.qsize()
+    with processing_lock:
+        currently_processing = is_processing
+    
+    return {
+        'status': 'healthy', 
+        'gpu_available': torch.cuda.is_available(),
+        'queue_size': queue_size,
+        'currently_processing': currently_processing
+    }, 200
 
 @app.route('/remove-background', methods=['POST'])
 @require_domain
->>>>>>> Stashed changes
 def remove_background():
     try:
         if 'image' not in request.files:
+            logger.warning('No image file provided in request')
             return {'error': 'No image file provided'}, 400
         
-<<<<<<< Updated upstream
+        # Handle both single file and multiple files
         files = request.files.getlist('image')
-=======
-        file = request.files['image']
-        if file.filename == '':
+        if not files or files[0].filename == '':
+            logger.warning('No file selected in request')
             return {'error': 'No file selected'}, 400
         
-        # Validate file type
+        # Validate file types
         allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'}
-        if not file.filename.lower().endswith(tuple('.' + ext for ext in allowed_extensions)):
-            return {'error': 'Invalid file type. Please upload an image.'}, 400
+        for file in files:
+            if not file.filename.lower().endswith(tuple('.' + ext for ext in allowed_extensions)):
+                logger.warning(f'Invalid file type: {file.filename}')
+                return {'error': f'Invalid file type: {file.filename}. Please upload an image.'}, 400
         
-        img = Image.open(file.stream).convert("RGB")
-        img = smart_resize(img)
->>>>>>> Stashed changes
+        # Create a unique request ID
+        request_id = str(uuid.uuid4())
         
-        def process_image(file):
-            img = Image.open(file.stream).convert("RGB")
-            img = smart_resize(img)
-            result = pipe(img)
-            img_io = io.BytesIO()
-            result.save(img_io, 'PNG', optimize=True, quality=95)
-            img_io.seek(0)
-            return img_io
+        # Get queue position
+        queue_size = request_queue.qsize()
+        with processing_lock:
+            if is_processing:
+                queue_size += 1
         
-        # Process images in parallel
-        results = list(executor.map(process_image, files))
+        # Create a response object to hold results
+        response_data = {'status': 'queued', 'request_id': request_id, 'queue_position': queue_size}
         
+        def process_callback(results, error):
+            """Callback function to handle processing results"""
+            if error:
+                response_data.update({'status': 'error', 'error': error})
+            else:
+                response_data.update({'status': 'completed', 'results': results})
+        
+        # Add request to queue
+        request = ProcessingRequest(request_id, files, process_callback)
+        request_queue.put(request)
+        
+        # Wait for processing to complete (with timeout)
+        timeout = 300  # 5 minutes timeout
+        start_time = time.time()
+        
+        while response_data['status'] == 'queued':
+            if time.time() - start_time > timeout:
+                return {'error': 'Processing timeout'}, 408
+            time.sleep(0.1)
+        
+        if response_data['status'] == 'error':
+            return {'error': response_data['error']}, 500
+        
+        # Return results
+        results = response_data['results']
         if len(results) == 1:
+            logger.info(f"Returning single processed image: {files[0].filename}")
             return send_file(results[0], mimetype='image/png')
         else:
             # If multiple images, zip them
@@ -174,61 +279,11 @@ def remove_background():
                 for i, result in enumerate(results):
                     zip_file.writestr(f'image_{i}.png', result.getvalue())
             zip_io.seek(0)
+            logger.info(f"Returning ZIP with {len(results)} images.")
             return send_file(zip_io, mimetype='application/zip', as_attachment=True, download_name='processed_images.zip')
     
     except Exception as e:
         logger.error(f"Error processing image: {str(e)}")
-<<<<<<< Updated upstream
-        return 'Error processing image', 500
-    
-app.debug = False
-
-def run_dev_server():
-    app.run(host='0.0.0.0', debug=True, port=5000)
-
-def run_gunicorn_server(workers=4):
-    import gunicorn.app.base
-
-    class StandaloneApplication(gunicorn.app.base.BaseApplication):
-        def __init__(self, app, options=None):
-            self.options = options or {}
-            self.application = app
-            super().__init__()
-
-        def load_config(self):
-            for key, value in self.options.items():
-                if key in self.cfg.settings and value is not None:
-                    self.cfg.set(key.lower(), value)
-
-        def load(self):
-            return self.application
-
-    options = {
-        'bind': '0.0.0.0:5000',
-        'workers': workers,
-        'worker_class': 'gevent'
-    }
-    StandaloneApplication(app, options).run()
-
-if __name__ == '__main__':
-    import argparse
-
-    parser = argparse.ArgumentParser(description='Run the Flask app')
-    parser.add_argument('--mode', choices=['dev', 'local', 'production'], default='dev',
-                        help='Run mode: dev (default), local (Gunicorn), or production')
-    args = parser.parse_args()
-
-    if sys.platform.startswith('win'):
-        # On Windows, always use the development server
-        logger.info("Running on Windows. Using development server.")
-        run_dev_server()
-    else:
-        if args.mode == 'dev':
-            run_dev_server()
-        elif args.mode in ['local', 'production']:
-            workers = 4 if args.mode == 'local' else os.cpu_count() * 2 + 1
-            run_gunicorn_server(workers)
-=======
         return {'error': 'Error processing image'}, 500
 
 if __name__ == '__main__':
@@ -238,4 +293,3 @@ if __name__ == '__main__':
     host = os.getenv('HOST', '0.0.0.0')
     
     app.run(debug=debug_mode, host=host, port=port)
->>>>>>> Stashed changes

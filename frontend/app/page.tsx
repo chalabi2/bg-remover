@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Loader2, Plus, X } from "lucide-react"
+import { Loader2, Plus, X, Trash2, Sun, Moon, Download } from "lucide-react"
 import { useTheme } from 'next-themes'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { useToast } from "@/components/ui/use-toast"
@@ -22,6 +22,13 @@ interface ImageFile {
   preview: string;
   processed?: string;
   isSelected?: boolean;
+  filename: string;
+  uploadTime: number;
+}
+
+interface QueueStatus {
+  queue_size: number;
+  currently_processing: boolean;
 }
 
 function LandingPage() {
@@ -40,26 +47,72 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false)
   const [showModal, setShowModal] = useState(false)
   const [selectedImages, setSelectedImages] = useState<ImageFile[]>([])
+  const [queueStatus, setQueueStatus] = useState<QueueStatus>({ queue_size: 0, currently_processing: false })
 
   const { theme, setTheme } = useTheme()
   const { toast } = useToast()
 
+  // Load images from localStorage on mount
   useEffect(() => {
     const storedImages = localStorage.getItem('backgroundRemovalImages')
     if (storedImages) {
-      setImages(JSON.parse(storedImages))
+      try {
+        const parsed = JSON.parse(storedImages)
+        // Filter out any invalid entries and add missing properties
+        const validImages = parsed.filter((img: any) => img && img.id && img.preview).map((img: any) => ({
+          ...img,
+          filename: img.filename || `image_${img.id}`,
+          uploadTime: img.uploadTime || Date.now(),
+          isSelected: false
+        }))
+        setImages(validImages)
+      } catch (error) {
+        console.error('Error loading images from localStorage:', error)
+        localStorage.removeItem('backgroundRemovalImages')
+      }
     }
   }, [])
 
+  // Save images to localStorage whenever they change
   useEffect(() => {
-    localStorage.setItem('backgroundRemovalImages', JSON.stringify(images))
+    if (images.length > 0) {
+      localStorage.setItem('backgroundRemovalImages', JSON.stringify(images))
+    } else {
+      localStorage.removeItem('backgroundRemovalImages')
+    }
   }, [images])
+
+  // Poll queue status
+  useEffect(() => {
+    const pollQueueStatus = async () => {
+      try {
+        const response = await fetch(getApiUrl('/health'))
+        if (response.ok) {
+          const data = await response.json()
+          setQueueStatus({
+            queue_size: data.queue_size || 0,
+            currently_processing: data.currently_processing || false
+          })
+        }
+      } catch (error) {
+        console.error('Error polling queue status:', error)
+      }
+    }
+
+    // Poll every 2 seconds
+    const interval = setInterval(pollQueueStatus, 2000)
+    pollQueueStatus() // Initial poll
+
+    return () => clearInterval(interval)
+  }, [])
 
   const onDrop = (acceptedFiles: File[]) => {
     const newImages = acceptedFiles.map(file => ({
       id: Math.random().toString(36).substr(2, 9),
       file,
       preview: URL.createObjectURL(file),
+      filename: file.name,
+      uploadTime: Date.now(),
       isSelected: false
     }))
     setSelectedImages(newImages)
@@ -80,9 +133,7 @@ export default function Home() {
       formData.append('image', image.file)
 
       try {
-
         const response = await fetch(getApiUrl('/remove-background'), {
-
           method: 'POST',
           body: formData,
         });
@@ -98,14 +149,16 @@ export default function Home() {
           console.error('Error processing image:', response.status, errorText)
           toast({
             title: "Error",
-            description: `Failed to remove background for image ${image.id}`,
+            description: `Failed to remove background for ${image.filename}`,
+            variant: "destructive"
           })
         }
       } catch (error) {
         console.error('Network error:', error)
         toast({
           title: "Error",
-          description: `Network error for image ${image.id}`,
+          description: `Network error for ${image.filename}`,
+          variant: "destructive"
         })
       }
     }
@@ -129,16 +182,58 @@ export default function Home() {
     ))
   }
 
-  const downloadSelectedImages = () => {
-    images.forEach(image => {
-      if (image.isSelected && image.processed) {
-        const link = document.createElement('a')
-        link.href = image.processed
-        link.download = `processed_${image.id}.png`
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
+  const deleteImage = (id: string) => {
+    setImages(prev => {
+      const image = prev.find(img => img.id === id)
+      if (image) {
+        // Clean up object URLs
+        URL.revokeObjectURL(image.preview)
+        if (image.processed) {
+          URL.revokeObjectURL(image.processed)
+        }
       }
+      return prev.filter(img => img.id !== id)
+    })
+  }
+
+  const deleteSelectedImages = () => {
+    const selectedImages = images.filter(img => img.isSelected)
+    selectedImages.forEach(image => {
+      URL.revokeObjectURL(image.preview)
+      if (image.processed) {
+        URL.revokeObjectURL(image.processed)
+      }
+    })
+    setImages(prev => prev.filter(img => !img.isSelected))
+    toast({
+      title: "Deleted",
+      description: `Removed ${selectedImages.length} image(s)`,
+    })
+  }
+
+  const deleteAllImages = () => {
+    images.forEach(image => {
+      URL.revokeObjectURL(image.preview)
+      if (image.processed) {
+        URL.revokeObjectURL(image.processed)
+      }
+    })
+    setImages([])
+    toast({
+      title: "Deleted",
+      description: "Removed all images",
+    })
+  }
+
+  const downloadSelectedImages = () => {
+    const selectedProcessed = images.filter(img => img.isSelected && img.processed)
+    selectedProcessed.forEach(image => {
+      const link = document.createElement('a')
+      link.href = image.processed!
+      link.download = `processed_${image.filename}`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
     })
   }
 
@@ -148,20 +243,21 @@ export default function Home() {
   }
 
   const downloadAllProcessedImages = () => {
-    images.forEach(image => {
-      if (image.processed) {
-        const link = document.createElement('a')
-        link.href = image.processed
-        link.download = `processed_${image.id}.png`
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
-      }
+    const processedImages = images.filter(img => img.processed)
+    processedImages.forEach(image => {
+      const link = document.createElement('a')
+      link.href = image.processed!
+      link.download = `processed_${image.filename}`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
     })
   }
 
   if (status === "loading") {
-    return <div className="flex justify-center items-center h-screen">   <Icons.spinner className="mr-2 my-auto h-24 w-24 animate-spin" /></div>
+    return <div className="flex justify-center items-center h-screen">
+      <Icons.spinner className="mr-2 my-auto h-24 w-24 animate-spin" />
+    </div>
   }
 
   if (!session) {
@@ -178,9 +274,30 @@ export default function Home() {
         <div className="container mx-auto p-4 flex justify-between items-center">
           <h1 className="text-2xl font-bold">rm-bg</h1>
           <div className="flex items-center space-x-4">
+            {/* Queue Status */}
+            {(queueStatus.queue_size > 0 || queueStatus.currently_processing) && (
+              <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span>
+                  {queueStatus.currently_processing ? 'Processing...' : `Queue: ${queueStatus.queue_size}`}
+                </span>
+              </div>
+            )}
+            
             <AuthButtons />
-            <Button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
-              {theme === 'dark' ? 'Light' : 'Dark'} Mode
+            
+            {/* Theme Toggle Icon Button */}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+              className="h-9 w-9"
+            >
+              {theme === 'dark' ? (
+                <Sun className="h-4 w-4" />
+              ) : (
+                <Moon className="h-4 w-4" />
+              )}
             </Button>
           </div>
         </div>
@@ -199,39 +316,50 @@ export default function Home() {
             </CardContent>
           </Card>
         )}
-{images.length > 0 && (
-  <div className="mb-4 flex flex-wrap gap-2 bg-gray-100/10 p-4 rounded-lg min-h-20 items-center justify-start">
-    {selectedCount === 0 ? (
-      <>
-        <Button 
-          onClick={processAllImages}
-          disabled={isLoading || processedCount === images.length}
-        >
-          {isLoading ? 'Processing...' : `Process All (${images.length - processedCount})`}
-        </Button>
-        {processedCount > 0 && (
-          <Button onClick={downloadAllProcessedImages}>
-            Download All ({processedCount})
-          </Button>
+
+        {images.length > 0 && (
+          <div className="mb-4 flex flex-wrap gap-2 bg-gray-100/10 p-4 rounded-lg min-h-20 items-center justify-start">
+            {selectedCount === 0 ? (
+              <>
+                <Button 
+                  onClick={processAllImages}
+                  disabled={isLoading || processedCount === images.length}
+                >
+                  {isLoading ? 'Processing...' : `Process All (${images.length - processedCount})`}
+                </Button>
+                {processedCount > 0 && (
+                  <Button onClick={downloadAllProcessedImages} variant="secondary">
+                    <Download className="h-4 w-4 mr-2" />
+                    Download All ({processedCount})
+                  </Button>
+                )}
+                <Button onClick={deleteAllImages} variant="destructive">
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete All
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button 
+                  onClick={() => processImages(images.filter(img => img.isSelected && !img.processed))}
+                  disabled={isLoading || images.every(img => img.processed)}
+                >
+                  {isLoading ? 'Processing...' : `Process Selected (${selectedCount})`}
+                </Button>
+                {images.filter(img => img.isSelected && img.processed).length > 0 && (
+                  <Button onClick={downloadSelectedImages} variant="secondary">
+                    <Download className="h-4 w-4 mr-2" />
+                    Download Selected ({images.filter(img => img.isSelected && img.processed).length})
+                  </Button>
+                )}
+                <Button onClick={deleteSelectedImages} variant="destructive">
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Selected ({selectedCount})
+                </Button>
+              </>
+            )}
+          </div>
         )}
-      </>
-    ) : (
-      <>
-        <Button 
-          onClick={() => processImages(images.filter(img => img.isSelected && !img.processed))}
-          disabled={isLoading || images.every(img => img.processed)}
-        >
-          {isLoading ? 'Processing...' : `Process Selected (${selectedCount})`}
-        </Button>
-        {images.filter(img => img.isSelected && img.processed).length > 0 && (
-          <Button onClick={downloadSelectedImages}>
-            Download Selected ({images.filter(img => img.isSelected && img.processed).length})
-          </Button>
-        )}
-      </>
-    )}
-  </div>
-)}
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <AnimatePresence>
@@ -245,17 +373,27 @@ export default function Home() {
               >
                 <Card className="overflow-hidden">
                   <CardHeader className="flex flex-row items-center justify-between">
-                    <CardTitle className="text-lg">Image {image.id}</CardTitle>
-                    <Checkbox
-                      checked={image.isSelected}
-                      onCheckedChange={() => toggleImageSelection(image.id)}
-                    />
+                    <CardTitle className="text-lg truncate">{image.filename}</CardTitle>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        checked={image.isSelected}
+                        onCheckedChange={() => toggleImageSelection(image.id)}
+                      />
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => deleteImage(image.id)}
+                        className="h-8 w-8 p-0"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </CardHeader>
                   <CardContent className="p-4">
                     <div className="relative aspect-square">
                       <Image 
                         src={image.processed || image.preview} 
-                        alt={`Image ${image.id}`} 
+                        alt={image.filename} 
                         layout="fill"
                         objectFit="cover"
                         className="rounded-md"
@@ -273,7 +411,8 @@ export default function Home() {
                     )}
                     {image.processed && (
                       <Button asChild variant="secondary">
-                        <a href={image.processed} download={`processed_${image.id}.png`}>
+                        <a href={image.processed} download={`processed_${image.filename}`}>
+                          <Download className="h-4 w-4 mr-2" />
                           Download
                         </a>
                       </Button>
@@ -311,7 +450,7 @@ export default function Home() {
             <div className="grid grid-cols-3 gap-4">
               {selectedImages.map((image) => (
                 <div key={image.id} className="relative">
-                  <Image src={image.preview} alt={`Image ${image.id}`} width={100} height={100} objectFit="cover" />
+                  <Image src={image.preview} alt={image.filename} width={100} height={100} objectFit="cover" />
                   <Button
                     size="sm"
                     variant="destructive"

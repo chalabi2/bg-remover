@@ -1,5 +1,4 @@
 # Gunicorn configuration for production deployment
-import multiprocessing
 import os
 
 # Server socket
@@ -12,7 +11,8 @@ worker_class = "sync"
 worker_connections = 1000
 max_requests = 1000
 max_requests_jitter = 50
-preload_app = True
+preload_app = False  # Disable preloading to avoid multiprocessing issues
+worker_tmp_dir = "/dev/shm"  # Use shared memory for worker temp files
 
 # Timeout settings
 timeout = 120  # Increased timeout for image processing
@@ -36,6 +36,12 @@ limit_request_field_size = 8190
 # Environment variables
 raw_env = [
     "FLASK_ENV=production",
+    "CUDA_VISIBLE_DEVICES=0",  # Ensure CUDA device is properly set
+    "PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512",  # Optimize CUDA memory allocation
+    "PYTHONPATH=/home/ubuntu/Documents/Code/bg-remover/backend",  # Ensure Python path is set
+    "TOKENIZERS_PARALLELISM=false",  # Disable tokenizer parallelism
+    "OMP_NUM_THREADS=1",  # Limit OpenMP threads
+    "MKL_NUM_THREADS=1",  # Limit MKL threads
 ]
 
 # SSL (uncomment if using HTTPS)
