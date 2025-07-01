@@ -2,7 +2,7 @@
 // Get API base URL from NEXT_PUBLIC_API_BASE_URL if set, otherwise use default
 const prodBaseUrl = typeof window !== 'undefined' && (window as any).NEXT_PUBLIC_API_BASE_URL
   ? (window as any).NEXT_PUBLIC_API_BASE_URL
-  : 'https://backend.rmbg.jchalabi.xyz';
+  : 'https://backend-rmbg.jchalabi.xyz';
 
 // API Configuration
 export const config = {
