@@ -1,0 +1,30 @@
+[Unit]
+Description=Background Remover API
+After=network.target
+
+[Service]
+Type=exec
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/Documents/Code/bg-remover/backend
+Environment=PATH=/home/ubuntu/Documents/Code/bg-remover/backend/venv/bin
+Environment=FLASK_ENV=production
+Environment=PORT=5000
+Environment=HOST=0.0.0.0
+ExecStart=/home/ubuntu/Documents/Code/bg-remover/backend/venv/bin/gunicorn --config /home/ubuntu/Documents/Code/bg-remover/backend/gunicorn.conf.py app:app
+ExecReload=/bin/kill -s HUP $MAINPID
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=bg-remover-api
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+# Allow access to home directory for the application
+ReadWritePaths=/home/ubuntu/Documents/Code/bg-remover/backend
+
+[Install]
+WantedBy=multi-user.target 
