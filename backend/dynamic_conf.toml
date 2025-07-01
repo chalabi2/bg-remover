@@ -1,0 +1,22 @@
+[http.routers]
+  [http.routers.bg-remover]
+    rule = "Host(`api.jchalabi.xyz`)"
+    service = "bg-remover"
+    entryPoints = ["websecure"]
+    [http.routers.bg-remover.tls]
+      certResolver = "myresolver"
+
+[http.services]
+  [http.services.bg-remover.loadBalancer]
+    [[http.services.bg-remover.loadBalancer.servers]]
+      url = "http://bg-remover:5000"
+
+[http.middlewares]
+  [http.middlewares.cors.headers]
+    accessControlAllowOriginList = ["https://rmbg.jchalabi.xyz"]
+    accessControlAllowMethods = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    accessControlAllowHeaders = ["Origin", "Content-Type", "Accept"]
+    accessControlAllowCredentials = true
+
+[http.routers.bg-remover.middlewares]
+  middlewares = ["cors"]

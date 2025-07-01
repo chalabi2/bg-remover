@@ -9,8 +9,8 @@ export function AuthButtons() {
   if (session) {
     return (
       <>
-        Signed in as {session.user?.email} <br />
-        <Button onClick={() => signOut()}>Sign out</Button>
+       
+        <Button className="text-sm  p-3 justify-center items-center flex bg-gray-100 rounded-lg" onClick={() => signOut()}>{session.user?.email}</Button>
       </>
     )
   }

@@ -7,9 +7,13 @@ from transformers import pipeline
 import logging
 from functools import lru_cache
 import math
+import sys
+import os
+from concurrent.futures import ThreadPoolExecutor
+import zipfile
 
 app = Flask(__name__)
-CORS(app, resources={r"/remove-background": {"origins": "http://localhost:3000"}})
+CORS(app, resources={r"/*": {"origins": ["https://rmbg.jchalabi.xyz", "https://api.jchalabi.xyz"]}})
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -24,13 +28,23 @@ else:
     device = torch.device("cpu")
     logger.info("CUDA is not available. Using CPU.")
 
+# Determine the number of workers based on available CPU cores
+num_workers = os.cpu_count() or 1
+logger.info(f"Number of workers: {num_workers}")
 @lru_cache(maxsize=1)
 def get_model():
-    model = pipeline("image-segmentation", model="briaai/RMBG-1.4", trust_remote_code=True, device=device)
+    model = pipeline("image-segmentation", 
+                     model="briaai/RMBG-1.4", 
+                     trust_remote_code=True, 
+                     device=device,
+                     torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32)
     logger.info(f"Model loaded on device: {model.device}")
     return model
 
 pipe = get_model()
+
+# Create a thread pool for parallel processing
+executor = ThreadPoolExecutor(max_workers=num_workers)
 
 def smart_resize(img, max_size=1920, max_area=2073600):  # 1920x1080 = 2,073,600 pixels
     width, height = img.size
@@ -45,28 +59,94 @@ def smart_resize(img, max_size=1920, max_area=2073600):  # 1920x1080 = 2,073,600
         new_width = int(new_height * aspect_ratio)
     return img.resize((new_width, new_height), Image.LANCZOS)
 
-@app.route('/remove-background', methods=['POST'])
+@app.before_request
+def log_request_info():
+    app.logger.info('Headers: %s', request.headers)
+    app.logger.info('Body: %s', request.get_data())
+
+@app.route('/', methods=['GET'])
+def health_check():
+    return 'OK', 200
+    
+@app.route('/', methods=['POST'])
 def remove_background():
     try:
         if 'image' not in request.files:
             return 'No image file', 400
         
-        file = request.files['image']
-        img = Image.open(file.stream).convert("RGB")
-        img = smart_resize(img)
+        files = request.files.getlist('image')
         
-        # Process the image
-        result = pipe(img)
+        def process_image(file):
+            img = Image.open(file.stream).convert("RGB")
+            img = smart_resize(img)
+            result = pipe(img)
+            img_io = io.BytesIO()
+            result.save(img_io, 'PNG', optimize=True, quality=95)
+            img_io.seek(0)
+            return img_io
         
-        # Save the result
-        img_io = io.BytesIO()
-        result.save(img_io, 'PNG', optimize=True, quality=85)
-        img_io.seek(0)
+        # Process images in parallel
+        results = list(executor.map(process_image, files))
         
-        return send_file(img_io, mimetype='image/png')
+        if len(results) == 1:
+            return send_file(results[0], mimetype='image/png')
+        else:
+            # If multiple images, zip them
+            zip_io = io.BytesIO()
+            with zipfile.ZipFile(zip_io, 'w') as zip_file:
+                for i, result in enumerate(results):
+                    zip_file.writestr(f'image_{i}.png', result.getvalue())
+            zip_io.seek(0)
+            return send_file(zip_io, mimetype='application/zip', as_attachment=True, download_name='processed_images.zip')
+    
     except Exception as e:
         logger.error(f"Error processing image: {str(e)}")
         return 'Error processing image', 500
+    
+app.debug = False
+
+def run_dev_server():
+    app.run(host='0.0.0.0', debug=True, port=5000)
+
+def run_gunicorn_server(workers=4):
+    import gunicorn.app.base
+
+    class StandaloneApplication(gunicorn.app.base.BaseApplication):
+        def __init__(self, app, options=None):
+            self.options = options or {}
+            self.application = app
+            super().__init__()
+
+        def load_config(self):
+            for key, value in self.options.items():
+                if key in self.cfg.settings and value is not None:
+                    self.cfg.set(key.lower(), value)
+
+        def load(self):
+            return self.application
+
+    options = {
+        'bind': '0.0.0.0:5000',
+        'workers': workers,
+        'worker_class': 'gevent'
+    }
+    StandaloneApplication(app, options).run()
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    import argparse
+
+    parser = argparse.ArgumentParser(description='Run the Flask app')
+    parser.add_argument('--mode', choices=['dev', 'local', 'production'], default='dev',
+                        help='Run mode: dev (default), local (Gunicorn), or production')
+    args = parser.parse_args()
+
+    if sys.platform.startswith('win'):
+        # On Windows, always use the development server
+        logger.info("Running on Windows. Using development server.")
+        run_dev_server()
+    else:
+        if args.mode == 'dev':
+            run_dev_server()
+        elif args.mode in ['local', 'production']:
+            workers = 4 if args.mode == 'local' else os.cpu_count() * 2 + 1
+            run_gunicorn_server(workers)
