@@ -2,7 +2,7 @@
 export const config = {
   api: {
     baseUrl: process.env.NODE_ENV === 'production' 
-      ? 'https://asus-3.duckdns.org:5000'  // Production: DuckDNS domain
+      ? 'http://asus-3.duckdns.org:5000'  // Production: DuckDNS domain (HTTP)
       : 'http://localhost:5000',           // Development: localhost
     
     endpoints: {
