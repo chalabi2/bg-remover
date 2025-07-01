@@ -14,6 +14,8 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { useToast } from "@/components/ui/use-toast"
 import { AuthButtons } from "@/components/AuthButtons"
 import { Icons } from "@/components/icons"
+import { getApiUrl } from "@/lib/config"
+
 interface ImageFile {
   id: string;
   file: File;
@@ -89,7 +91,9 @@ export default function Home() {
       formData.append('image', image.file)
 
       try {
-        const response = await fetch('/api', {
+
+        const response = await fetch(getApiUrl('/remove-background'), {
+
           method: 'POST',
           body: formData,
         });
