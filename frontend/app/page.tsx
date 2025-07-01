@@ -82,8 +82,10 @@ export default function Home() {
     }
   }, [images])
 
-  // Poll queue status
+  // Poll queue status only when processing
   useEffect(() => {
+    if (!isLoading) return
+
     const pollQueueStatus = async () => {
       try {
         const response = await fetch(getApiUrl('/health'))
@@ -99,12 +101,12 @@ export default function Home() {
       }
     }
 
-    // Poll every 2 seconds
-    const interval = setInterval(pollQueueStatus, 2000)
+    // Poll every 5 seconds only when processing
+    const interval = setInterval(pollQueueStatus, 5000)
     pollQueueStatus() // Initial poll
 
     return () => clearInterval(interval)
-  }, [])
+  }, [isLoading])
 
   const onDrop = (acceptedFiles: File[]) => {
     const newImages = acceptedFiles.map(file => ({

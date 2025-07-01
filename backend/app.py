@@ -8,10 +8,7 @@ import logging
 from functools import lru_cache, wraps
 import math
 import threading
-import queue
 import time
-import uuid
-from datetime import datetime, timedelta
 
 import sys
 import os
@@ -83,18 +80,9 @@ else:
 _model = None
 _model_lock = threading.Lock()
 
-# Queue system for handling multiple requests
-request_queue = queue.Queue()
+# Simple processing lock for sequential processing
 processing_lock = threading.Lock()
 is_processing = False
-
-class ProcessingRequest:
-    def __init__(self, request_id, files, callback):
-        self.request_id = request_id
-        self.files = files
-        self.callback = callback
-        self.created_at = datetime.now()
-        self.status = "queued"
 
 def get_model():
     """Get or initialize the model with thread safety"""
@@ -110,55 +98,6 @@ def get_model():
                             torch_dtype=torch.float32)
             logger.info(f"Model loaded on device: {_model.device}")
     return _model
-
-def queue_processor():
-    """Background thread to process requests from the queue"""
-    global is_processing
-    
-    while True:
-        try:
-            # Get request from queue
-            request = request_queue.get(timeout=1)
-            
-            with processing_lock:
-                is_processing = True
-            
-            logger.info(f"Processing request {request.request_id}")
-            request.status = "processing"
-            
-            # Process the request
-            try:
-                results = []
-                for file in request.files:
-                    result = process_image_safe(file)
-                    results.append(result)
-                
-                # Call the callback with results
-                request.callback(results, None)
-                request.status = "completed"
-                logger.info(f"Completed request {request.request_id}")
-                
-            except Exception as e:
-                logger.error(f"Error processing request {request.request_id}: {str(e)}")
-                request.callback(None, str(e))
-                request.status = "failed"
-            
-            finally:
-                with processing_lock:
-                    is_processing = False
-                request_queue.task_done()
-                
-        except queue.Empty:
-            # No requests in queue, continue waiting
-            continue
-        except Exception as e:
-            logger.error(f"Error in queue processor: {str(e)}")
-            time.sleep(1)
-
-# Start the queue processor thread
-queue_thread = threading.Thread(target=queue_processor, daemon=True)
-queue_thread.start()
-logger.info("Queue processor thread started")
 
 def smart_resize(img, max_size=1920, max_area=2073600):  # 1920x1080 = 2,073,600 pixels
     width, height = img.size
@@ -200,20 +139,21 @@ def process_image_safe(file):
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint for production monitoring - accessible from anywhere"""
-    queue_size = request_queue.qsize()
     with processing_lock:
         currently_processing = is_processing
     
     return {
         'status': 'healthy', 
         'gpu_available': torch.cuda.is_available(),
-        'queue_size': queue_size,
+        'queue_size': 0,  # No queue system, just sequential processing
         'currently_processing': currently_processing
     }, 200
 
 @app.route('/remove-background', methods=['POST'])
 @require_domain
 def remove_background():
+    global is_processing
+    
     try:
         if 'image' not in request.files:
             logger.warning('No image file provided in request')
@@ -232,55 +172,35 @@ def remove_background():
                 logger.warning(f'Invalid file type: {file.filename}')
                 return {'error': f'Invalid file type: {file.filename}. Please upload an image.'}, 400
         
-        # Create a unique request ID
-        request_id = str(uuid.uuid4())
-        
-        # Get queue position
-        queue_size = request_queue.qsize()
+        # Process images sequentially with lock
         with processing_lock:
-            if is_processing:
-                queue_size += 1
-        
-        # Create a response object to hold results
-        response_data = {'status': 'queued', 'request_id': request_id, 'queue_position': queue_size}
-        
-        def process_callback(results, error):
-            """Callback function to handle processing results"""
-            if error:
-                response_data.update({'status': 'error', 'error': error})
-            else:
-                response_data.update({'status': 'completed', 'results': results})
-        
-        # Add request to queue
-        request = ProcessingRequest(request_id, files, process_callback)
-        request_queue.put(request)
-        
-        # Wait for processing to complete (with timeout)
-        timeout = 300  # 5 minutes timeout
-        start_time = time.time()
-        
-        while response_data['status'] == 'queued':
-            if time.time() - start_time > timeout:
-                return {'error': 'Processing timeout'}, 408
-            time.sleep(0.1)
-        
-        if response_data['status'] == 'error':
-            return {'error': response_data['error']}, 500
-        
-        # Return results
-        results = response_data['results']
-        if len(results) == 1:
-            logger.info(f"Returning single processed image: {files[0].filename}")
-            return send_file(results[0], mimetype='image/png')
-        else:
-            # If multiple images, zip them
-            zip_io = io.BytesIO()
-            with zipfile.ZipFile(zip_io, 'w') as zip_file:
-                for i, result in enumerate(results):
-                    zip_file.writestr(f'image_{i}.png', result.getvalue())
-            zip_io.seek(0)
-            logger.info(f"Returning ZIP with {len(results)} images.")
-            return send_file(zip_io, mimetype='application/zip', as_attachment=True, download_name='processed_images.zip')
+            is_processing = True
+            try:
+                results = []
+                for file in files:
+                    try:
+                        result = process_image_safe(file)
+                        results.append(result)
+                    except Exception as e:
+                        logger.error(f"Failed to process {file.filename}: {str(e)}")
+                        return {'error': f'Failed to process {file.filename}'}, 500
+                
+                # Return results
+                if len(results) == 1:
+                    logger.info(f"Returning single processed image: {files[0].filename}")
+                    return send_file(results[0], mimetype='image/png')
+                else:
+                    # If multiple images, zip them
+                    zip_io = io.BytesIO()
+                    with zipfile.ZipFile(zip_io, 'w') as zip_file:
+                        for i, result in enumerate(results):
+                            zip_file.writestr(f'image_{i}.png', result.getvalue())
+                    zip_io.seek(0)
+                    logger.info(f"Returning ZIP with {len(results)} images.")
+                    return send_file(zip_io, mimetype='application/zip', as_attachment=True, download_name='processed_images.zip')
+            
+            finally:
+                is_processing = False
     
     except Exception as e:
         logger.error(f"Error processing image: {str(e)}")
