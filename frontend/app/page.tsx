@@ -132,7 +132,28 @@ export default function Home() {
 
     for (const image of imagesToProcess) {
       const formData = new FormData()
-      formData.append('image', image.file)
+      
+      // Enhanced mobile compatibility - ensure file is valid
+      if (!image.file || !(image.file instanceof File)) {
+        console.error('Invalid file object:', image.file)
+        toast({
+          title: "Error",
+          description: `Invalid file: ${image.filename}`,
+          variant: "destructive"
+        })
+        continue
+      }
+      
+      // Add file with explicit filename for mobile compatibility
+      formData.append('image', image.file, image.filename)
+      
+      // Debug logging for mobile issues
+      console.log('Processing file:', {
+        filename: image.filename,
+        fileType: image.file.type,
+        fileSize: image.file.size,
+        fileLastModified: image.file.lastModified
+      })
 
       try {
         const response = await fetch(getApiUrl('/remove-background'), {

@@ -14,10 +14,18 @@ import sys
 import os
 import zipfile
 
+# Import for HEIC/HEIF support
+try:
+    from pillow_heif import register_heif_opener
+    register_heif_opener()
+    HEIF_SUPPORTED = True
+except ImportError:
+    HEIF_SUPPORTED = False
+
 app = Flask(__name__)
 
 # Domain-based access control
-ALLOWED_DOMAINS = ["rmbg.jchalabi.xyz", "asus-3.duckdns.org"]
+ALLOWED_DOMAINS = ["rmbg.jchalabi.xyz", "asus-3.duckdns.org", "backend-rmbg.jchalabi.xyz"]
 
 def require_domain(f):
     """Decorator to restrict access to specific domains"""
@@ -66,6 +74,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Log HEIF support status
+if not HEIF_SUPPORTED:
+    logger.warning("pillow-heif not available. HEIC/HEIF formats will not be supported.")
+
 if torch.cuda.is_available():
     device = torch.device("cuda")
     logger.info(f"CUDA is available. Using GPU: {torch.cuda.get_device_name(0)}")
@@ -113,8 +125,15 @@ def smart_resize(img, max_size=1920, max_area=2073600):  # 1920x1080 = 2,073,600
     return img.resize((new_width, new_height), Image.LANCZOS)
 
 def process_image_safe(file):
-    """Process a single image with thread safety"""
+    """Process a single image with thread safety and support for various formats including HEIC/HEIF"""
     try:
+        # Handle HEIC/HEIF files if supported
+        file_extension = file.filename.lower().split('.')[-1] if file.filename else ''
+        
+        if file_extension in ['heic', 'heif'] and not HEIF_SUPPORTED:
+            logger.error(f"HEIC/HEIF file {file.filename} uploaded but pillow-heif not available")
+            raise Exception("HEIC/HEIF format not supported on this server")
+        
         # Load and prepare image
         img = Image.open(file.stream).convert("RGB")
         img = smart_resize(img)
@@ -129,7 +148,7 @@ def process_image_safe(file):
         result.save(img_io, 'PNG', optimize=True, quality=95)
         img_io.seek(0)
         
-        logger.info(f"Processed image: {file.filename}, size: {img.size}")
+        logger.info(f"Processed image: {file.filename}, size: {img.size}, format: {file_extension}")
         return img_io
         
     except Exception as e:
@@ -155,18 +174,28 @@ def remove_background():
     global is_processing
     
     try:
+        # Enhanced debugging for mobile issues
+        logger.info(f"Request files keys: {list(request.files.keys())}")
+        logger.info(f"Request form keys: {list(request.form.keys())}")
+        logger.info(f"Request headers: {dict(request.headers)}")
+        
         if 'image' not in request.files:
             logger.warning('No image file provided in request')
             return {'error': 'No image file provided'}, 400
         
         # Handle both single file and multiple files
         files = request.files.getlist('image')
+        logger.info(f"Files received: {len(files)}")
+        for i, file in enumerate(files):
+            logger.info(f"File {i}: filename={file.filename}, content_type={file.content_type}, size={len(file.read())} bytes")
+            file.seek(0)  # Reset file pointer after reading for size
+        
         if not files or files[0].filename == '':
             logger.warning('No file selected in request')
             return {'error': 'No file selected'}, 400
         
-        # Validate file types
-        allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'}
+        # Validate file types - Added support for iPhone formats
+        allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'heic', 'heif', 'tiff', 'tif'}
         for file in files:
             if not file.filename.lower().endswith(tuple('.' + ext for ext in allowed_extensions)):
                 logger.warning(f'Invalid file type: {file.filename}')
