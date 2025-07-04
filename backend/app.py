@@ -22,7 +22,9 @@ try:
 except ImportError:
     HEIF_SUPPORTED = False
 
+# Configure Flask app with file size limits
 app = Flask(__name__)
+app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB limit
 
 # Domain-based access control
 ALLOWED_DOMAINS = ["rmbg.jchalabi.xyz", "asus-3.duckdns.org", "backend-rmbg.jchalabi.xyz"]
@@ -112,17 +114,26 @@ def get_model():
     return _model
 
 def smart_resize(img, max_size=1920, max_area=2073600):  # 1920x1080 = 2,073,600 pixels
+    """
+    Resize image while preserving aspect ratio and pixel density.
+    Returns both the resized image and the original dimensions for restoration.
+    """
+    original_size = img.size
     width, height = img.size
     aspect_ratio = width / height
+    
     if width * height <= max_area and max(width, height) <= max_size:
-        return img  
+        return img, original_size
+    
     if aspect_ratio > 1:  # Landscape
         new_width = min(max_size, int(math.sqrt(max_area * aspect_ratio)))
         new_height = int(new_width / aspect_ratio)
     else:  # Portrait or square
         new_height = min(max_size, int(math.sqrt(max_area / aspect_ratio)))
         new_width = int(new_height * aspect_ratio)
-    return img.resize((new_width, new_height), Image.LANCZOS)
+    
+    resized_img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+    return resized_img, original_size
 
 def process_image_safe(file):
     """Process a single image with thread safety and support for various formats including HEIC/HEIF"""
@@ -136,19 +147,26 @@ def process_image_safe(file):
         
         # Load and prepare image
         img = Image.open(file.stream).convert("RGB")
-        img = smart_resize(img)
+        original_size = img.size
+        
+        # Resize for processing while preserving original dimensions
+        img_resized, original_dimensions = smart_resize(img)
         
         # Get model and process image with thread safety
         model = get_model()
         with _model_lock:
-            result = model(img)
+            result = model(img_resized)
         
-        # Save result
+        # Restore original dimensions if the image was resized
+        if result.size != original_dimensions:
+            result = result.resize(original_dimensions, Image.Resampling.LANCZOS)
+        
+        # Save result with high quality
         img_io = io.BytesIO()
         result.save(img_io, 'PNG', optimize=True, quality=95)
         img_io.seek(0)
         
-        logger.info(f"Processed image: {file.filename}, size: {img.size}, format: {file_extension}")
+        logger.info(f"Processed image: {file.filename}, original size: {original_size}, processed size: {result.size}, format: {file_extension}")
         return img_io
         
     except Exception as e:
@@ -199,7 +217,9 @@ def remove_background():
         for file in files:
             if not file.filename.lower().endswith(tuple('.' + ext for ext in allowed_extensions)):
                 logger.warning(f'Invalid file type: {file.filename}')
-                return {'error': f'Invalid file type: {file.filename}. Please upload an image.'}, 400
+                return {
+                    'error': f'Unsupported file type: {file.filename}. Please upload a JPEG, PNG, GIF, BMP, WebP, HEIC, HEIF, or TIFF image.'
+                }, 400
         
         # Process images sequentially with lock
         with processing_lock:
@@ -212,7 +232,21 @@ def remove_background():
                         results.append(result)
                     except Exception as e:
                         logger.error(f"Failed to process {file.filename}: {str(e)}")
-                        return {'error': f'Failed to process {file.filename}'}, 500
+                        error_message = str(e)
+                        
+                        # Provide more specific error messages
+                        if "HEIC/HEIF format not supported" in error_message:
+                            return {
+                                'error': f'HEIC/HEIF format not supported for {file.filename}. Please convert to JPEG or PNG first.'
+                            }, 400
+                        elif "memory" in error_message.lower():
+                            return {
+                                'error': f'Image too large to process: {file.filename}. Please try a smaller image.'
+                            }, 413
+                        else:
+                            return {
+                                'error': f'Failed to process {file.filename}: {error_message}'
+                            }, 500
                 
                 # Return results
                 if len(results) == 1:
@@ -233,7 +267,17 @@ def remove_background():
     
     except Exception as e:
         logger.error(f"Error processing image: {str(e)}")
-        return {'error': 'Error processing image'}, 500
+        error_message = str(e)
+        
+        # Provide user-friendly error messages
+        if "413" in error_message or "too large" in error_message.lower():
+            return {'error': 'File size too large for processing. Please try a smaller image.'}, 413
+        elif "memory" in error_message.lower():
+            return {'error': 'Image too large to process. Please try a smaller image.'}, 413
+        elif "format" in error_message.lower():
+            return {'error': 'Unsupported image format. Please upload a JPEG, PNG, GIF, BMP, WebP, HEIC, HEIF, or TIFF image.'}, 400
+        else:
+            return {'error': 'An error occurred while processing your image. Please try again.'}, 500
 
 if __name__ == '__main__':
     # Development mode

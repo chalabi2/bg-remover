@@ -20,6 +20,7 @@ export const config = {
 }
 
 // Helper function to get full API URL
-export const getApiUrl = (endpoint: string) => {
-  return `${config.api.baseUrl}${endpoint}`
+export function getApiUrl(path: string): string {
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL || '';
+  return `${baseUrl}${path}`;
 } 
