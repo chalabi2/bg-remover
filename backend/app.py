@@ -177,6 +177,21 @@ CORS(app, resources={
         "methods": ["POST", "OPTIONS"],
         "allow_headers": ["Content-Type"]
     },
+    r"/images": {
+        "origins": [f"https://{domain}" for domain in ALLOWED_DOMAINS] + [f"http://{domain}" for domain in ALLOWED_DOMAINS],
+        "methods": ["GET", "OPTIONS"],
+        "allow_headers": ["Content-Type"]
+    },
+    r"/image/*": {
+        "origins": [f"https://{domain}" for domain in ALLOWED_DOMAINS] + [f"http://{domain}" for domain in ALLOWED_DOMAINS],
+        "methods": ["GET", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type"]
+    },
+    r"/upload": {
+        "origins": [f"https://{domain}" for domain in ALLOWED_DOMAINS] + [f"http://{domain}" for domain in ALLOWED_DOMAINS],
+        "methods": ["POST", "OPTIONS"],
+        "allow_headers": ["Content-Type"]
+    },
     r"/health": {
         "origins": "*",  # Allow health checks from anywhere
         "methods": ["GET", "OPTIONS"]
