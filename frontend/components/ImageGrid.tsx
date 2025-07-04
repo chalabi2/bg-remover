@@ -91,11 +91,11 @@ export function ImageGrid({
   if (images.length === 0) {
     return (
       <div className="text-center py-12">
-        <div className="text-gray-400 mb-4">
+        <div className="text-muted-foreground mb-4">
           <Eye className="h-12 w-12 mx-auto" />
         </div>
-        <p className="text-lg font-medium text-gray-900 mb-2">No images yet</p>
-        <p className="text-gray-500">Upload your first image to get started</p>
+        <p className="text-lg font-medium text-foreground mb-2">No images yet</p>
+        <p className="text-muted-foreground">Upload your first image to get started</p>
       </div>
     );
   }
@@ -109,10 +109,10 @@ export function ImageGrid({
         return (
           <div
             key={image.id}
-            className={`relative bg-white rounded-lg border-2 overflow-hidden transition-all duration-200 hover:shadow-lg ${
+            className={`relative bg-card rounded-lg border-2 overflow-hidden transition-all duration-200 hover:shadow-lg ${
               isSelected 
-                ? 'border-blue-500 shadow-md' 
-                : 'border-gray-200 hover:border-gray-300'
+                ? 'border-primary shadow-md' 
+                : 'border-border hover:border-primary'
             }`}
           >
             {/* Selection checkbox */}
@@ -121,8 +121,8 @@ export function ImageGrid({
                 onClick={() => isSelected ? onDeselectImage(image.id) : onSelectImage(image.id)}
                 className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
                   isSelected
-                    ? 'bg-blue-500 border-blue-500 text-white'
-                    : 'bg-white border-gray-300 hover:border-blue-400'
+                    ? 'bg-primary border-primary text-primary-foreground'
+                    : 'bg-background border-border hover:border-primary'
                 }`}
               >
                 {isSelected && <Check className="h-3 w-3" />}
@@ -131,9 +131,9 @@ export function ImageGrid({
 
             {/* Status indicator */}
             <div className="absolute top-2 right-2 z-10">
-              <div className="flex items-center space-x-1 bg-white/90 backdrop-blur-sm rounded-full px-2 py-1">
+              <div className="flex items-center space-x-1 bg-card/90 backdrop-blur-sm rounded-full px-2 py-1">
                 {getStatusIcon(image)}
-                <span className="text-xs font-medium text-gray-700">
+                <span className="text-xs font-medium text-muted-foreground">
                   {getStatusText(image)}
                 </span>
               </div>
@@ -141,7 +141,7 @@ export function ImageGrid({
 
             {/* Image preview */}
             <div 
-              className="relative aspect-square bg-gray-100 cursor-pointer group"
+              className="relative aspect-square bg-muted cursor-pointer group"
               onClick={() => onViewImage(image)}
             >
               <img
@@ -171,7 +171,7 @@ export function ImageGrid({
                       onChange={(e) => setEditTitle(e.target.value)}
                       onKeyPress={(e) => handleKeyPress(e, image.id)}
                       onBlur={() => handleSaveTitle(image.id)}
-                      className="flex-1 text-sm font-medium text-gray-900 border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="flex-1 text-sm font-medium text-foreground border border-border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary bg-background"
                       autoFocus
                     />
                     <button
@@ -189,12 +189,12 @@ export function ImageGrid({
                   </div>
                 ) : (
                   <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-medium text-gray-900 truncate flex-1">
+                    <h3 className="text-sm font-medium text-foreground truncate flex-1">
                       {image.title}
                     </h3>
                     <button
                       onClick={() => handleEditTitle(image)}
-                      className="text-gray-400 hover:text-gray-600 ml-1"
+                      className="text-muted-foreground hover:text-foreground ml-1"
                     >
                       <Edit3 className="h-3 w-3" />
                     </button>
@@ -203,7 +203,7 @@ export function ImageGrid({
               </div>
 
               {/* Upload time */}
-              <p className="text-xs text-gray-500 mb-3">
+              <p className="text-xs text-muted-foreground mb-3">
                 {new Date(image.upload_time).toLocaleDateString()}
               </p>
 
@@ -213,7 +213,7 @@ export function ImageGrid({
                   <button
                     onClick={() => onProcessImage(image.id)}
                     disabled={image.status === 'processing'}
-                    className="flex-1 bg-blue-600 text-white text-xs px-3 py-1.5 rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-1"
+                    className="flex-1 bg-primary text-primary-foreground text-xs px-3 py-1.5 rounded hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-1"
                   >
                     {image.status === 'processing' ? (
                       <>
@@ -230,7 +230,7 @@ export function ImageGrid({
                 ) : (
                   <button
                     onClick={() => onDownloadImage(image.id)}
-                    className="flex-1 bg-green-600 text-white text-xs px-3 py-1.5 rounded hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-1 flex items-center justify-center space-x-1"
+                    className="flex-1 bg-primary text-primary-foreground text-xs px-3 py-1.5 rounded hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1 flex items-center justify-center space-x-1"
                   >
                     <Download className="h-3 w-3" />
                     <span>Download</span>

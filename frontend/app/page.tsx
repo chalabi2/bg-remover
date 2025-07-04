@@ -9,6 +9,7 @@ import { ImageGrid } from '@/components/ImageGrid'
 import { ImageToolbar } from '@/components/ImageToolbar'
 import { ImageViewer } from '@/components/ImageViewer'
 import { AuthGuard } from '@/components/AuthGuard'
+import { AppHeader } from '@/components/AppHeader'
 
 // Create a client
 const queryClient = new QueryClient({
@@ -56,27 +57,7 @@ function BackgroundRemoverApp() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      {/* Header */}
-      <header className="bg-background shadow-sm border-b border-border">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-6">
-            <div>
-              <h1 className="text-3xl font-bold text-foreground">
-                Background Remover
-              </h1>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Upload images and remove backgrounds with AI
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-sm text-muted-foreground">
-                Images are stored for 7 days
-              </p>
-            </div>
-          </div>
-        </div>
-      </header>
-
+      {/* Header is now handled in AppHeader above */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Upload Section */}
         <div className="mb-8">
@@ -170,6 +151,7 @@ function BackgroundRemoverApp() {
 export default function Page() {
   return (
     <AuthGuard>
+      <AppHeader />
       <QueryClientProvider client={queryClient}>
         <BackgroundRemoverApp />
       </QueryClientProvider>

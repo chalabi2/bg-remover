@@ -62,20 +62,20 @@ export function ImageUpload({ onUpload, isUploading }: ImageUploadProps) {
   if (uploadedFile) {
     return (
       <div className="w-full max-w-md mx-auto">
-        <div className="bg-white rounded-lg border-2 border-dashed border-gray-300 p-6">
+        <div className="bg-card rounded-lg border-2 border-dashed border-border p-6">
           <div className="flex items-center space-x-3 mb-4">
-            <FileImage className="h-8 w-8 text-blue-500" />
+            <FileImage className="h-8 w-8 text-primary" />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900 truncate">
+              <p className="text-sm font-medium text-foreground truncate">
                 {uploadedFile.name}
               </p>
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-muted-foreground">
                 {(uploadedFile.size / (1024 * 1024)).toFixed(2)} MB
               </p>
             </div>
             <button
               onClick={handleCancel}
-              className="text-gray-400 hover:text-gray-600"
+              className="text-muted-foreground hover:text-foreground"
               disabled={isUploading || isProcessing}
             >
               <X className="h-5 w-5" />
@@ -84,7 +84,7 @@ export function ImageUpload({ onUpload, isUploading }: ImageUploadProps) {
 
           <div className="space-y-4">
             <div>
-              <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="title" className="block text-sm font-medium text-foreground mb-1">
                 Image Title
               </label>
               <input
@@ -94,7 +94,7 @@ export function ImageUpload({ onUpload, isUploading }: ImageUploadProps) {
                 onChange={(e) => setTitle(e.target.value)}
                 onKeyPress={handleKeyPress}
                 placeholder="Enter a title for your image..."
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary bg-background text-foreground"
                 disabled={isUploading || isProcessing}
               />
             </div>
@@ -103,7 +103,7 @@ export function ImageUpload({ onUpload, isUploading }: ImageUploadProps) {
               <button
                 onClick={handleUpload}
                 disabled={isUploading || isProcessing}
-                className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 bg-primary text-primary-foreground px-4 py-2 rounded-md hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isUploading || isProcessing ? (
                   <div className="flex items-center justify-center">
@@ -117,7 +117,7 @@ export function ImageUpload({ onUpload, isUploading }: ImageUploadProps) {
               <button
                 onClick={handleCancel}
                 disabled={isUploading || isProcessing}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 border border-border text-foreground rounded-md hover:bg-muted focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>
@@ -132,22 +132,22 @@ export function ImageUpload({ onUpload, isUploading }: ImageUploadProps) {
     <div className="w-full max-w-md mx-auto">
       <div
         {...getRootProps()}
-        className={`bg-white rounded-lg border-2 border-dashed p-8 text-center cursor-pointer transition-colors ${
+        className={`bg-card rounded-lg border-2 border-dashed p-8 text-center cursor-pointer transition-colors ${
           isDragActive
-            ? 'border-blue-400 bg-blue-50'
-            : 'border-gray-300 hover:border-gray-400'
+            ? 'border-primary bg-accent'
+            : 'border-border hover:border-primary'
         } ${isUploading || isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
       >
         <input {...getInputProps()} />
-        <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+        <Upload className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
         <div className="space-y-2">
-          <p className="text-lg font-medium text-gray-900">
+          <p className="text-lg font-medium text-foreground">
             {isDragActive ? 'Drop the image here' : 'Upload an image'}
           </p>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-muted-foreground">
             Drag and drop an image here, or click to select
           </p>
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-muted-foreground">
             Supports JPEG, PNG, GIF, BMP, WebP, HEIC, HEIF, TIFF (max 50MB)
           </p>
         </div>
