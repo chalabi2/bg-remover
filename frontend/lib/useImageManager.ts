@@ -134,19 +134,42 @@ export function useImageManager(): ImageManagerState & ImageManagerActions {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to update title');
+        let errorMessage = 'Failed to update title';
+        
+        // Check if response is JSON before parsing
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.error || errorMessage;
+          } catch (jsonError) {
+            console.error('Failed to parse error JSON:', jsonError);
+            errorMessage = `Update failed (${response.status})`;
+          }
+        } else {
+          // Non-JSON response
+          try {
+            const errorText = await response.text();
+            errorMessage = errorText || `Update failed (${response.status})`;
+          } catch (textError) {
+            errorMessage = `Update failed (${response.status})`;
+          }
+        }
+        
+        throw new Error(errorMessage);
       }
 
-      return response.json();
+      // For successful responses, we don't need to parse the result
+      // The mutation just needs to complete successfully
+      return;
     },
     onSuccess: (_, { title }) => {
       toast.success(`Title updated to "${title}"`);
       queryClient.invalidateQueries({ queryKey: ['images'] });
     },
     onError: (error) => {
-      toast.error(error.message);
-      setError(error.message);
+      toast.error(error.message || 'Failed to update title');
+      setError(error.message || 'Failed to update title');
     },
   });
 

@@ -20,15 +20,22 @@ export async function GET(
     if (!response.ok) {
       let errorMessage = 'Failed to get original image';
       
-      try {
-        const errorData = await response.json();
-        errorMessage = errorData.error || errorMessage;
-      } catch {
+      // Check if response is JSON before parsing
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch (jsonError) {
+          console.error('Failed to parse error JSON:', jsonError);
+        }
+      } else {
+        // Non-JSON response, get as text
         try {
           const errorText = await response.text();
           errorMessage = errorText || errorMessage;
-        } catch {
-          // Use default error message
+        } catch (textError) {
+          console.error('Failed to read error text:', textError);
         }
       }
       
@@ -39,11 +46,12 @@ export async function GET(
       );
     }
 
+    // For image responses, return the blob directly
     const imageBlob = await response.blob();
     return new NextResponse(imageBlob, {
       status: 200,
       headers: {
-        'Content-Type': 'image/jpeg',
+        'Content-Type': response.headers.get('content-type') || 'image/jpeg',
         'Cache-Control': 'public, max-age=3600', // Cache for 1 hour
       },
     });

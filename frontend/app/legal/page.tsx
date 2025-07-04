@@ -7,25 +7,25 @@ export default function LegalPage() {
   const [activeSection, setActiveSection] = useState<'tos' | 'privacy'>('tos');
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background text-foreground">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+        <div className="bg-card rounded-lg shadow-sm border border-border">
           {/* Header */}
-          <div className="border-b border-gray-200 px-6 py-4">
-            <h1 className="text-2xl font-bold text-gray-900">Legal Information</h1>
-            <p className="mt-1 text-sm text-gray-500">
+          <div className="border-b border-border px-6 py-4">
+            <h1 className="text-2xl font-bold text-foreground">Legal Information</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
               Terms of Service and Privacy Policy
             </p>
           </div>
 
           {/* Navigation */}
-          <div className="flex border-b border-gray-200">
+          <div className="flex border-b border-border">
             <button
               onClick={() => setActiveSection('tos')}
               className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
                 activeSection === 'tos'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
               }`}
             >
               Terms of Service
@@ -34,8 +34,8 @@ export default function LegalPage() {
               onClick={() => setActiveSection('privacy')}
               className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
                 activeSection === 'privacy'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
               }`}
             >
               Privacy Policy
@@ -95,7 +95,7 @@ function TermsOfService() {
             <li>Content that violates any applicable laws or regulations</li>
             <li>Content intended to harass, threaten, or harm others</li>
           </ul>
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-muted-foreground">
             <strong>Violation of these terms will result in immediate account termination, content removal, and may be reported to law enforcement.</strong>
           </p>
         </div>
@@ -147,7 +147,7 @@ function TermsOfService() {
           <p>
             If you believe your copyrighted work has been uploaded without permission, please contact us at:
           </p>
-          <div className="bg-gray-50 p-3 rounded">
+          <div className="bg-card p-3 rounded">
             <p className="font-medium">DMCA Agent</p>
             <p>Email: chalabi@jchalabi.xyz</p>
             <p>Include: Description of work, location on service, your contact information, and statement of good faith belief.</p>
@@ -211,26 +211,26 @@ function TermsOfService() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-bold text-gray-900 mb-2">Terms of Service</h2>
-        <p className="text-gray-600">Last updated: {new Date().toLocaleDateString()}</p>
+        <h2 className="text-xl font-bold text-foreground mb-2">Terms of Service</h2>
+        <p className="text-muted-foreground">Last updated: {new Date().toLocaleDateString()}</p>
       </div>
 
       <div className="space-y-4">
         {sections.map((section) => (
-          <div key={section.id} className="border border-gray-200 rounded-lg">
+          <div key={section.id} className="border border-border rounded-lg">
             <button
               onClick={() => toggleSection(section.id)}
-              className="w-full px-4 py-3 text-left flex items-center justify-between hover:bg-gray-50"
+              className="w-full px-4 py-3 text-left flex items-center justify-between hover:bg-card"
             >
-              <span className="font-medium text-gray-900">{section.title}</span>
+              <span className="font-medium text-foreground">{section.title}</span>
               {expandedSections.has(section.id) ? (
-                <ChevronDown className="h-5 w-5 text-gray-500" />
+                <ChevronDown className="h-5 w-5 text-muted-foreground" />
               ) : (
-                <ChevronRight className="h-5 w-5 text-gray-500" />
+                <ChevronRight className="h-5 w-5 text-muted-foreground" />
               )}
             </button>
             {expandedSections.has(section.id) && (
-              <div className="px-4 pb-4 text-gray-700">
+              <div className="px-4 pb-4 text-foreground">
                 {section.content}
               </div>
             )}
@@ -267,7 +267,7 @@ function PrivacyPolicy() {
             <li><strong>Upload Metadata:</strong> File names, sizes, timestamps, and titles</li>
             <li><strong>Usage Logs:</strong> Upload attempts, processing status, and errors</li>
           </ul>
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-muted-foreground">
             We do not collect personal information such as names, emails, or phone numbers unless explicitly provided.
           </p>
         </div>
@@ -377,7 +377,7 @@ function PrivacyPolicy() {
       content: (
         <div className="space-y-3">
           <p>For privacy-related questions or concerns:</p>
-          <div className="bg-gray-50 p-3 rounded">
+          <div className="bg-card p-3 rounded">
             <p className="font-medium">Privacy Officer</p>
             <p>Email: chalabi@jchalabi.xyz</p>
             <p>Response time: Within 30 days</p>
@@ -390,26 +390,26 @@ function PrivacyPolicy() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-bold text-gray-900 mb-2">Privacy Policy</h2>
-        <p className="text-gray-600">Last updated: {new Date().toLocaleDateString()}</p>
+        <h2 className="text-xl font-bold text-foreground mb-2">Privacy Policy</h2>
+        <p className="text-muted-foreground">Last updated: {new Date().toLocaleDateString()}</p>
       </div>
 
       <div className="space-y-4">
         {sections.map((section) => (
-          <div key={section.id} className="border border-gray-200 rounded-lg">
+          <div key={section.id} className="border border-border rounded-lg">
             <button
               onClick={() => toggleSection(section.id)}
-              className="w-full px-4 py-3 text-left flex items-center justify-between hover:bg-gray-50"
+              className="w-full px-4 py-3 text-left flex items-center justify-between hover:bg-card"
             >
-              <span className="font-medium text-gray-900">{section.title}</span>
+              <span className="font-medium text-foreground">{section.title}</span>
               {expandedSections.has(section.id) ? (
-                <ChevronDown className="h-5 w-5 text-gray-500" />
+                <ChevronDown className="h-5 w-5 text-muted-foreground" />
               ) : (
-                <ChevronRight className="h-5 w-5 text-gray-500" />
+                <ChevronRight className="h-5 w-5 text-muted-foreground" />
               )}
             </button>
             {expandedSections.has(section.id) && (
-              <div className="px-4 pb-4 text-gray-700">
+              <div className="px-4 pb-4 text-foreground">
                 {section.content}
               </div>
             )}

@@ -71,15 +71,22 @@ export async function POST(request: NextRequest) {
     if (!response.ok) {
       let errorMessage = 'Upload failed';
       
-      try {
-        const errorData = await response.json();
-        errorMessage = errorData.error || errorMessage;
-      } catch {
+      // Check if response is JSON before parsing
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch (jsonError) {
+          console.error('Failed to parse error JSON:', jsonError);
+        }
+      } else {
+        // Non-JSON response, get as text
         try {
           const errorText = await response.text();
           errorMessage = errorText || errorMessage;
-        } catch {
-          // Use default error message
+        } catch (textError) {
+          console.error('Failed to read error text:', textError);
         }
       }
       
@@ -105,8 +112,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = await response.json();
-    return NextResponse.json(result);
+    // Check if successful response is JSON before parsing
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      try {
+        const result = await response.json();
+        return NextResponse.json(result);
+      } catch (jsonError) {
+        console.error('Failed to parse success JSON:', jsonError);
+        // If JSON parsing fails but request was successful, return a default success response
+        return NextResponse.json({ 
+          id: 'unknown', 
+          title: title || imageFile.name, 
+          message: 'Image uploaded successfully' 
+        });
+      }
+    } else {
+      // Non-JSON success response, return default success
+      return NextResponse.json({ 
+        id: 'unknown', 
+        title: title || imageFile.name, 
+        message: 'Image uploaded successfully' 
+      });
+    }
 
   } catch (error) {
     console.error('Upload API error:', error);

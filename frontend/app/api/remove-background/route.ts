@@ -5,16 +5,14 @@ const BACKEND_URL = process.env.BACKEND_URL || 'https://backend-rmbg.jchalabi.xy
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { file_id } = body;
     
-    if (!file_id) {
+    if (!body.file_id) {
       return NextResponse.json(
         { error: 'File ID is required' },
         { status: 400 }
       );
     }
 
-    // Process image
     const response = await fetch(`${BACKEND_URL}/remove-background`, {
       method: 'POST',
       headers: {
@@ -22,44 +20,56 @@ export async function POST(request: NextRequest) {
         'Origin': request.headers.get('origin') || '',
         'Referer': request.headers.get('referer') || '',
       },
-      body: JSON.stringify({ file_id }),
+      body: JSON.stringify({ file_id: body.file_id }),
     });
 
     if (!response.ok) {
-      let errorMessage = 'Background removal failed';
+      let errorMessage = 'Failed to process image';
       
-      try {
-        const errorData = await response.json();
-        errorMessage = errorData.error || errorMessage;
-      } catch {
+      // Check if response is JSON before parsing
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch (jsonError) {
+          console.error('Failed to parse error JSON:', jsonError);
+        }
+      } else {
+        // Non-JSON response, get as text
         try {
           const errorText = await response.text();
           errorMessage = errorText || errorMessage;
-        } catch {
-          // Use default error message
+        } catch (textError) {
+          console.error('Failed to read error text:', textError);
         }
       }
       
-      console.error('Background removal error:', response.status, errorMessage);
-      
-      if (response.status === 413) {
-        return NextResponse.json(
-          { error: 'File size too large for processing. Please try a smaller image.' },
-          { status: 413 }
-        );
-      }
-      
+      console.error('Remove background error:', response.status, errorMessage);
       return NextResponse.json(
         { error: errorMessage },
         { status: response.status }
       );
     }
 
-    const result = await response.json();
-    return NextResponse.json(result);
+    // Check if successful response is JSON before parsing
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      try {
+        const result = await response.json();
+        return NextResponse.json(result);
+      } catch (jsonError) {
+        console.error('Failed to parse success JSON:', jsonError);
+        // If JSON parsing fails but request was successful, return a default success response
+        return NextResponse.json({ message: 'Background removed successfully' });
+      }
+    } else {
+      // Non-JSON success response, return default success
+      return NextResponse.json({ message: 'Background removed successfully' });
+    }
 
   } catch (error) {
-    console.error('Background removal API error:', error);
+    console.error('Remove background API error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

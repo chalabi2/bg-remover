@@ -19,15 +19,22 @@ export async function GET(request: NextRequest) {
     if (!response.ok) {
       let errorMessage = 'Failed to fetch images';
       
-      try {
-        const errorData = await response.json();
-        errorMessage = errorData.error || errorMessage;
-      } catch {
+      // Check if response is JSON before parsing
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch (jsonError) {
+          console.error('Failed to parse error JSON:', jsonError);
+        }
+      } else {
+        // Non-JSON response, get as text
         try {
           const errorText = await response.text();
           errorMessage = errorText || errorMessage;
-        } catch {
-          // Use default error message
+        } catch (textError) {
+          console.error('Failed to read error text:', textError);
         }
       }
       
@@ -38,8 +45,22 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const images = await response.json();
-    return NextResponse.json(images);
+    // Check if successful response is JSON before parsing
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      try {
+        const images = await response.json();
+        return NextResponse.json(images);
+      } catch (jsonError) {
+        console.error('Failed to parse images JSON:', jsonError);
+        // If JSON parsing fails, return empty array
+        return NextResponse.json([]);
+      }
+    } else {
+      // Non-JSON response, return empty array
+      console.warn('Backend returned non-JSON response for images list');
+      return NextResponse.json([]);
+    }
 
   } catch (error) {
     console.error('List images API error:', error);
