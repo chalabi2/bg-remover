@@ -1,201 +1,157 @@
 import React, { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Upload, X, AlertCircle, CheckCircle } from 'lucide-react';
-import { useToast } from '@/components/ui/use-toast';
-import { ImageFile } from '@/lib/useImageManager';
+import { Upload, X, FileImage } from 'lucide-react';
 
 interface ImageUploadProps {
-  onImagesSelected: (files: File[]) => void;
-  disabled?: boolean;
+  onUpload: (file: File, title?: string) => Promise<void>;
+  isUploading: boolean;
 }
 
-interface UploadFile {
-  file: File;
-  id: string;
-  status: 'uploading' | 'success' | 'error';
-  progress: number;
-  error?: string;
-}
+export function ImageUpload({ onUpload, isUploading }: ImageUploadProps) {
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [title, setTitle] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
 
-export function ImageUpload({ onImagesSelected, disabled = false }: ImageUploadProps) {
-  const [uploadFiles, setUploadFiles] = useState<UploadFile[]>([]);
-  const [dragActive, setDragActive] = useState(false);
-  const { toast } = useToast();
-
-  const onDrop = useCallback((acceptedFiles: File[], rejectedFiles: any[]) => {
-    if (disabled) return;
-
-    // Handle rejected files with detailed error messages
-    if (rejectedFiles.length > 0) {
-      const errors = rejectedFiles.map(({ file, errors }) => ({
-        file,
-        errors: errors.map((e: any) => {
-          // Provide user-friendly error messages
-          switch (e.code) {
-            case 'file-too-large':
-              return `File too large (${(file.size / (1024 * 1024)).toFixed(1)}MB). Maximum size is 50MB.`;
-            case 'file-invalid-type':
-              return `Invalid file type: ${file.type}. Please upload an image file.`;
-            case 'too-many-files':
-              return 'Too many files selected. Please select fewer files.';
-            default:
-              return e.message;
-          }
-        }).join(', ')
-      }));
-      
-      console.error('Rejected files:', errors);
-      
-      // Show error messages to user via toast
-      errors.forEach(({ file, errors }) => {
-        toast({
-          title: `File rejected: ${file.name}`,
-          description: errors,
-          variant: "destructive",
-        });
-      });
-    }
-
-    // Process accepted files
+  const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
-      const newUploadFiles: UploadFile[] = acceptedFiles.map(file => ({
-        file,
-        id: Math.random().toString(36).substr(2, 9),
-        status: 'uploading',
-        progress: 0,
-      }));
-
-      setUploadFiles(prev => [...prev, ...newUploadFiles]);
-
-      // Simulate upload progress for better UX
-      newUploadFiles.forEach((uploadFile, index) => {
-        const interval = setInterval(() => {
-          setUploadFiles(prev => 
-            prev.map(uf => 
-              uf.id === uploadFile.id 
-                ? { ...uf, progress: Math.min(uf.progress + 10, 90) }
-                : uf
-            )
-          );
-        }, 100);
-
-        // Complete upload after a short delay
-        setTimeout(() => {
-          clearInterval(interval);
-          setUploadFiles(prev => 
-            prev.map(uf => 
-              uf.id === uploadFile.id 
-                ? { ...uf, status: 'success', progress: 100 }
-                : uf
-            )
-          );
-
-          // Remove from upload list after showing success
-          setTimeout(() => {
-            setUploadFiles(prev => prev.filter(uf => uf.id !== uploadFile.id));
-          }, 1000);
-        }, 1000 + index * 200);
-      });
-
-      // Pass files to parent component
-      onImagesSelected(acceptedFiles);
+      const file = acceptedFiles[0];
+      setUploadedFile(file);
+      // Set default title from filename (without extension)
+      const filename = file.name;
+      const nameWithoutExt = filename.substring(0, filename.lastIndexOf('.'));
+      setTitle(nameWithoutExt || filename);
     }
-  }, [onImagesSelected, disabled]);
+  }, []);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
       'image/*': ['.jpeg', '.jpg', '.png', '.gif', '.bmp', '.webp', '.heic', '.heif', '.tiff', '.tif']
     },
-    maxSize: 50 * 1024 * 1024, // 50MB
-    multiple: true,
-    disabled,
+    maxFiles: 1,
+    disabled: isUploading || isProcessing
   });
 
-  const removeUploadFile = (id: string) => {
-    setUploadFiles(prev => prev.filter(uf => uf.id !== id));
+  const handleUpload = async () => {
+    if (!uploadedFile) return;
+
+    setIsProcessing(true);
+    try {
+      await onUpload(uploadedFile, title.trim() || undefined);
+      // Reset form after successful upload
+      setUploadedFile(null);
+      setTitle('');
+    } catch (error) {
+      console.error('Upload error:', error);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
-  return (
-    <div className="space-y-4">
-      <Card 
-        {...getRootProps()} 
-        className={`
-          relative border-2 border-dashed transition-colors cursor-pointer
-          ${isDragActive ? 'border-primary bg-primary/5' : 'border-muted-foreground/25 hover:border-primary/50'}
-          ${disabled ? 'opacity-50 cursor-not-allowed' : ''}
-        `}
-      >
-        <CardContent className="p-8 text-center">
-          <input {...getInputProps()} />
-          <Upload className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-          {isDragActive ? (
-            <p className="text-lg font-medium">Drop the files here...</p>
-          ) : (
-            <div>
-              <p className="text-lg font-medium mb-2">Drag & drop images here</p>
-              <p className="text-sm text-muted-foreground mb-4">
-                or click to select files
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Supports: JPEG, PNG, GIF, BMP, WebP, HEIC, HEIF, TIFF (Max 50MB)
-              </p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+  const handleCancel = () => {
+    setUploadedFile(null);
+    setTitle('');
+  };
 
-      {/* Upload Progress */}
-      <AnimatePresence>
-        {uploadFiles.map((uploadFile) => (
-          <motion.div
-            key={uploadFile.id}
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className="bg-muted/50 rounded-lg p-4"
-          >
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center space-x-2">
-                {uploadFile.status === 'uploading' && (
-                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent" />
-                )}
-                {uploadFile.status === 'success' && (
-                  <CheckCircle className="h-4 w-4 text-green-500" />
-                )}
-                {uploadFile.status === 'error' && (
-                  <AlertCircle className="h-4 w-4 text-red-500" />
-                )}
-                <span className="text-sm font-medium truncate">
-                  {uploadFile.file.name}
-                </span>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => removeUploadFile(uploadFile.id)}
-                className="h-6 w-6 p-0"
-              >
-                <X className="h-3 w-3" />
-              </Button>
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && uploadedFile && !isUploading && !isProcessing) {
+      handleUpload();
+    }
+  };
+
+  if (uploadedFile) {
+    return (
+      <div className="w-full max-w-md mx-auto">
+        <div className="bg-white rounded-lg border-2 border-dashed border-gray-300 p-6">
+          <div className="flex items-center space-x-3 mb-4">
+            <FileImage className="h-8 w-8 text-blue-500" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-900 truncate">
+                {uploadedFile.name}
+              </p>
+              <p className="text-sm text-gray-500">
+                {(uploadedFile.size / (1024 * 1024)).toFixed(2)} MB
+              </p>
             </div>
-            
-            <Progress value={uploadFile.progress} className="h-2" />
-            
-            {uploadFile.error && (
-              <Alert className="mt-2">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>{uploadFile.error}</AlertDescription>
-              </Alert>
-            )}
-          </motion.div>
-        ))}
-      </AnimatePresence>
+            <button
+              onClick={handleCancel}
+              className="text-gray-400 hover:text-gray-600"
+              disabled={isUploading || isProcessing}
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
+                Image Title
+              </label>
+              <input
+                id="title"
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                onKeyPress={handleKeyPress}
+                placeholder="Enter a title for your image..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                disabled={isUploading || isProcessing}
+              />
+            </div>
+
+            <div className="flex space-x-3">
+              <button
+                onClick={handleUpload}
+                disabled={isUploading || isProcessing}
+                className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isUploading || isProcessing ? (
+                  <div className="flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    {isUploading ? 'Uploading...' : 'Processing...'}
+                  </div>
+                ) : (
+                  'Upload Image'
+                )}
+              </button>
+              <button
+                onClick={handleCancel}
+                disabled={isUploading || isProcessing}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full max-w-md mx-auto">
+      <div
+        {...getRootProps()}
+        className={`bg-white rounded-lg border-2 border-dashed p-8 text-center cursor-pointer transition-colors ${
+          isDragActive
+            ? 'border-blue-400 bg-blue-50'
+            : 'border-gray-300 hover:border-gray-400'
+        } ${isUploading || isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
+      >
+        <input {...getInputProps()} />
+        <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+        <div className="space-y-2">
+          <p className="text-lg font-medium text-gray-900">
+            {isDragActive ? 'Drop the image here' : 'Upload an image'}
+          </p>
+          <p className="text-sm text-gray-500">
+            Drag and drop an image here, or click to select
+          </p>
+          <p className="text-xs text-gray-400">
+            Supports JPEG, PNG, GIF, BMP, WebP, HEIC, HEIF, TIFF (max 50MB)
+          </p>
+        </div>
+      </div>
     </div>
   );
 } 

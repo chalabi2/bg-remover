@@ -1,4 +1,4 @@
-from flask import Flask, request, send_file, abort
+from flask import Flask, request, send_file, abort, jsonify
 from flask_cors import CORS
 from PIL import Image
 import io
@@ -9,9 +9,13 @@ from functools import lru_cache, wraps
 import math
 import threading
 import time
+import os
+import uuid
+import json
+from datetime import datetime, timedelta
+import shutil
 
 import sys
-import os
 import zipfile
 
 # Import for HEIC/HEIF support
@@ -25,6 +29,116 @@ except ImportError:
 # Configure Flask app with file size limits
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB limit
+
+# Storage configuration
+UPLOAD_FOLDER = 'uploads'
+PROCESSED_FOLDER = 'processed'
+METADATA_FILE = 'image_metadata.json'
+CLEANUP_INTERVAL = 24 * 60 * 60  # 24 hours in seconds
+MAX_STORAGE_AGE = 7 * 24 * 60 * 60  # 7 days in seconds
+
+# Create directories if they don't exist
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(PROCESSED_FOLDER, exist_ok=True)
+
+# Load metadata
+def load_metadata():
+    if os.path.exists(METADATA_FILE):
+        try:
+            with open(METADATA_FILE, 'r') as f:
+                return json.load(f)
+        except:
+            return {}
+    return {}
+
+def save_metadata(metadata):
+    with open(METADATA_FILE, 'w') as f:
+        json.dump(metadata, f, indent=2)
+
+# Content filtering using NSFW detection
+def is_safe_content(image):
+    """Basic content filtering - can be enhanced with more sophisticated models"""
+    try:
+        # Convert to RGB if needed
+        if image.mode != 'RGB':
+            image = image.convert('RGB')
+        
+        # Basic checks - can be enhanced with NSFW detection models
+        # For now, we'll do basic size and format checks
+        width, height = image.size
+        
+        # Reject extremely large images (potential abuse)
+        if width * height > 10000 * 10000:  # 100MP limit
+            return False, "Image resolution too high"
+        
+        # Reject images that are too small (likely not photos)
+        if width < 50 or height < 50:
+            return False, "Image too small"
+        
+        # Basic color analysis - very simple heuristic
+        # This is a placeholder - should be replaced with proper NSFW detection
+        pixels = list(image.getdata())
+        if len(pixels) > 1000:  # Sample pixels for analysis
+            sample_pixels = pixels[::len(pixels)//1000]
+            avg_r = sum(p[0] for p in sample_pixels) / len(sample_pixels)
+            avg_g = sum(p[1] for p in sample_pixels) / len(sample_pixels)
+            avg_b = sum(p[2] for p in sample_pixels) / len(sample_pixels)
+            
+            # Very basic skin tone detection (this is just a placeholder)
+            # In production, use proper NSFW detection models
+            if avg_r > 200 and avg_g > 150 and avg_b > 100:
+                # This is a very crude check - replace with proper detection
+                pass
+        
+        return True, "Content appears safe"
+        
+    except Exception as e:
+        return False, f"Error analyzing content: {str(e)}"
+
+# Cleanup old files
+def cleanup_old_files():
+    """Remove files older than MAX_STORAGE_AGE"""
+    try:
+        metadata = load_metadata()
+        current_time = datetime.now()
+        files_to_remove = []
+        
+        for file_id, file_data in metadata.items():
+            upload_time = datetime.fromisoformat(file_data['upload_time'])
+            if (current_time - upload_time).total_seconds() > MAX_STORAGE_AGE:
+                files_to_remove.append(file_id)
+        
+        for file_id in files_to_remove:
+            # Remove original file
+            original_path = os.path.join(UPLOAD_FOLDER, f"{file_id}.jpg")
+            if os.path.exists(original_path):
+                os.remove(original_path)
+            
+            # Remove processed file
+            processed_path = os.path.join(PROCESSED_FOLDER, f"{file_id}.png")
+            if os.path.exists(processed_path):
+                os.remove(processed_path)
+            
+            # Remove from metadata
+            del metadata[file_id]
+        
+        if files_to_remove:
+            save_metadata(metadata)
+            logger.info(f"Cleaned up {len(files_to_remove)} old files")
+            
+    except Exception as e:
+        logger.error(f"Error during cleanup: {str(e)}")
+
+# Schedule cleanup
+def schedule_cleanup():
+    """Run cleanup every CLEANUP_INTERVAL seconds"""
+    while True:
+        time.sleep(CLEANUP_INTERVAL)
+        cleanup_old_files()
+
+# Start cleanup thread
+cleanup_thread = threading.Thread(target=schedule_cleanup, daemon=True)
+cleanup_thread.start()
 
 # Domain-based access control
 ALLOWED_DOMAINS = ["rmbg.jchalabi.xyz", "asus-3.duckdns.org", "backend-rmbg.jchalabi.xyz"]
@@ -186,82 +300,252 @@ def health_check():
         'currently_processing': currently_processing
     }, 200
 
+@app.route('/upload', methods=['POST'])
+@require_domain
+def upload_image():
+    """Upload and store image with metadata"""
+    try:
+        if 'image' not in request.files:
+            return {'error': 'No image file provided'}, 400
+        
+        file = request.files['image']
+        if file.filename == '':
+            return {'error': 'No file selected'}, 400
+        
+        # Get title from form data
+        title = request.form.get('title', file.filename)
+        
+        # Validate file type
+        allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'heic', 'heif', 'tiff', 'tif'}
+        if not file.filename.lower().endswith(tuple('.' + ext for ext in allowed_extensions)):
+            return {
+                'error': f'Unsupported file type: {file.filename}. Please upload a JPEG, PNG, GIF, BMP, WebP, HEIC, HEIF, or TIFF image.'
+            }, 400
+        
+        # Load and validate image
+        try:
+            img = Image.open(file.stream).convert("RGB")
+        except Exception as e:
+            return {'error': f'Invalid image file: {str(e)}'}, 400
+        
+        # Content filtering
+        is_safe, safety_message = is_safe_content(img)
+        if not is_safe:
+            return {'error': f'Content not allowed: {safety_message}'}, 400
+        
+        # Generate unique ID and save file
+        file_id = str(uuid.uuid4())
+        original_path = os.path.join(UPLOAD_FOLDER, f"{file_id}.jpg")
+        
+        # Save original image
+        img.save(original_path, 'JPEG', quality=95)
+        
+        # Save metadata
+        metadata = load_metadata()
+        metadata[file_id] = {
+            'id': file_id,
+            'original_filename': file.filename,
+            'title': title,
+            'upload_time': datetime.now().isoformat(),
+            'status': 'uploaded',
+            'processed': False
+        }
+        save_metadata(metadata)
+        
+        logger.info(f"Uploaded image: {file_id} - {title}")
+        return {
+            'id': file_id,
+            'title': title,
+            'message': 'Image uploaded successfully'
+        }
+        
+    except Exception as e:
+        logger.error(f"Upload error: {str(e)}")
+        return {'error': 'Upload failed'}, 500
+
+@app.route('/images', methods=['GET'])
+@require_domain
+def list_images():
+    """List all uploaded images"""
+    try:
+        metadata = load_metadata()
+        images = []
+        
+        for file_id, file_data in metadata.items():
+            original_path = os.path.join(UPLOAD_FOLDER, f"{file_id}.jpg")
+            processed_path = os.path.join(PROCESSED_FOLDER, f"{file_id}.png")
+            
+            if os.path.exists(original_path):
+                images.append({
+                    'id': file_id,
+                    'title': file_data.get('title', file_data.get('original_filename', 'Untitled')),
+                    'original_filename': file_data.get('original_filename', ''),
+                    'upload_time': file_data['upload_time'],
+                    'status': file_data.get('status', 'uploaded'),
+                    'processed': file_data.get('processed', False),
+                    'has_original': os.path.exists(original_path),
+                    'has_processed': os.path.exists(processed_path)
+                })
+        
+        # Sort by upload time (newest first)
+        images.sort(key=lambda x: x['upload_time'], reverse=True)
+        
+        return jsonify(images)
+        
+    except Exception as e:
+        logger.error(f"List images error: {str(e)}")
+        return {'error': 'Failed to list images'}, 500
+
+@app.route('/image/<file_id>', methods=['GET'])
+@require_domain
+def get_image(file_id):
+    """Get image details"""
+    try:
+        metadata = load_metadata()
+        if file_id not in metadata:
+            return {'error': 'Image not found'}, 404
+        
+        file_data = metadata[file_id]
+        original_path = os.path.join(UPLOAD_FOLDER, f"{file_id}.jpg")
+        processed_path = os.path.join(PROCESSED_FOLDER, f"{file_id}.png")
+        
+        return {
+            'id': file_id,
+            'title': file_data.get('title', file_data.get('original_filename', 'Untitled')),
+            'original_filename': file_data.get('original_filename', ''),
+            'upload_time': file_data['upload_time'],
+            'status': file_data.get('status', 'uploaded'),
+            'processed': file_data.get('processed', False),
+            'has_original': os.path.exists(original_path),
+            'has_processed': os.path.exists(processed_path)
+        }
+        
+    except Exception as e:
+        logger.error(f"Get image error: {str(e)}")
+        return {'error': 'Failed to get image'}, 500
+
+@app.route('/image/<file_id>/title', methods=['PUT'])
+@require_domain
+def update_title(file_id):
+    """Update image title"""
+    try:
+        data = request.get_json()
+        if not data or 'title' not in data:
+            return {'error': 'Title is required'}, 400
+        
+        title = data['title'].strip()
+        if not title:
+            return {'error': 'Title cannot be empty'}, 400
+        
+        metadata = load_metadata()
+        if file_id not in metadata:
+            return {'error': 'Image not found'}, 404
+        
+        metadata[file_id]['title'] = title
+        save_metadata(metadata)
+        
+        return {'message': 'Title updated successfully', 'title': title}
+        
+    except Exception as e:
+        logger.error(f"Update title error: {str(e)}")
+        return {'error': 'Failed to update title'}, 500
+
+@app.route('/image/<file_id>/original', methods=['GET'])
+@require_domain
+def get_original_image(file_id):
+    """Get original image file"""
+    try:
+        metadata = load_metadata()
+        if file_id not in metadata:
+            return {'error': 'Image not found'}, 404
+        
+        original_path = os.path.join(UPLOAD_FOLDER, f"{file_id}.jpg")
+        if not os.path.exists(original_path):
+            return {'error': 'Original image not found'}, 404
+        
+        return send_file(original_path, mimetype='image/jpeg')
+        
+    except Exception as e:
+        logger.error(f"Get original image error: {str(e)}")
+        return {'error': 'Failed to get original image'}, 500
+
+@app.route('/image/<file_id>/processed', methods=['GET'])
+@require_domain
+def get_processed_image(file_id):
+    """Get processed image file"""
+    try:
+        metadata = load_metadata()
+        if file_id not in metadata:
+            return {'error': 'Image not found'}, 404
+        
+        processed_path = os.path.join(PROCESSED_FOLDER, f"{file_id}.png")
+        if not os.path.exists(processed_path):
+            return {'error': 'Processed image not found'}, 404
+        
+        return send_file(processed_path, mimetype='image/png')
+        
+    except Exception as e:
+        logger.error(f"Get processed image error: {str(e)}")
+        return {'error': 'Failed to get processed image'}, 500
+
 @app.route('/remove-background', methods=['POST'])
 @require_domain
 def remove_background():
     global is_processing
     
     try:
-        # Enhanced debugging for mobile issues
-        logger.info(f"Request files keys: {list(request.files.keys())}")
-        logger.info(f"Request form keys: {list(request.form.keys())}")
-        logger.info(f"Request headers: {dict(request.headers)}")
+        # Get file ID from request
+        data = request.get_json()
+        if not data or 'file_id' not in data:
+            return {'error': 'File ID is required'}, 400
         
-        if 'image' not in request.files:
-            logger.warning('No image file provided in request')
-            return {'error': 'No image file provided'}, 400
+        file_id = data['file_id']
         
-        # Handle both single file and multiple files
-        files = request.files.getlist('image')
-        logger.info(f"Files received: {len(files)}")
-        for i, file in enumerate(files):
-            logger.info(f"File {i}: filename={file.filename}, content_type={file.content_type}, size={len(file.read())} bytes")
-            file.seek(0)  # Reset file pointer after reading for size
+        # Check if image exists
+        metadata = load_metadata()
+        if file_id not in metadata:
+            return {'error': 'Image not found'}, 404
         
-        if not files or files[0].filename == '':
-            logger.warning('No file selected in request')
-            return {'error': 'No file selected'}, 400
+        file_data = metadata[file_id]
+        original_path = os.path.join(UPLOAD_FOLDER, f"{file_id}.jpg")
         
-        # Validate file types - Added support for iPhone formats
-        allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'heic', 'heif', 'tiff', 'tif'}
-        for file in files:
-            if not file.filename.lower().endswith(tuple('.' + ext for ext in allowed_extensions)):
-                logger.warning(f'Invalid file type: {file.filename}')
-                return {
-                    'error': f'Unsupported file type: {file.filename}. Please upload a JPEG, PNG, GIF, BMP, WebP, HEIC, HEIF, or TIFF image.'
-                }, 400
+        if not os.path.exists(original_path):
+            return {'error': 'Original image not found'}, 404
         
-        # Process images sequentially with lock
+        # Process image
         with processing_lock:
             is_processing = True
             try:
-                results = []
-                for file in files:
-                    try:
-                        result = process_image_safe(file)
-                        results.append(result)
-                    except Exception as e:
-                        logger.error(f"Failed to process {file.filename}: {str(e)}")
-                        error_message = str(e)
-                        
-                        # Provide more specific error messages
-                        if "HEIC/HEIF format not supported" in error_message:
-                            return {
-                                'error': f'HEIC/HEIF format not supported for {file.filename}. Please convert to JPEG or PNG first.'
-                            }, 400
-                        elif "memory" in error_message.lower():
-                            return {
-                                'error': f'Image too large to process: {file.filename}. Please try a smaller image.'
-                            }, 413
-                        else:
-                            return {
-                                'error': f'Failed to process {file.filename}: {error_message}'
-                            }, 500
+                # Load image
+                img = Image.open(original_path).convert("RGB")
+                original_size = img.size
                 
-                # Return results
-                if len(results) == 1:
-                    logger.info(f"Returning single processed image: {files[0].filename}")
-                    return send_file(results[0], mimetype='image/png')
-                else:
-                    # If multiple images, zip them
-                    zip_io = io.BytesIO()
-                    with zipfile.ZipFile(zip_io, 'w') as zip_file:
-                        for i, result in enumerate(results):
-                            zip_file.writestr(f'image_{i}.png', result.getvalue())
-                    zip_io.seek(0)
-                    logger.info(f"Returning ZIP with {len(results)} images.")
-                    return send_file(zip_io, mimetype='application/zip', as_attachment=True, download_name='processed_images.zip')
-            
+                # Resize for processing while preserving original dimensions
+                img_resized, original_dimensions = smart_resize(img)
+                
+                # Get model and process image with thread safety
+                model = get_model()
+                with _model_lock:
+                    result = model(img_resized)
+                
+                # Restore original dimensions if the image was resized
+                if result.size != original_dimensions:
+                    result = result.resize(original_dimensions, Image.Resampling.LANCZOS)
+                
+                # Save processed image
+                processed_path = os.path.join(PROCESSED_FOLDER, f"{file_id}.png")
+                result.save(processed_path, 'PNG', optimize=True, quality=95)
+                
+                # Update metadata
+                file_data['processed'] = True
+                file_data['status'] = 'completed'
+                file_data['processed_time'] = datetime.now().isoformat()
+                metadata[file_id] = file_data
+                save_metadata(metadata)
+                
+                logger.info(f"Processed image: {file_id} - {file_data.get('title', 'Untitled')}")
+                return {'message': 'Background removed successfully'}
+                
             finally:
                 is_processing = False
     

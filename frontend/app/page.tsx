@@ -1,187 +1,175 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useSession } from "next-auth/react"
-import { Sun, Moon, Plus } from "lucide-react"
-import { useTheme } from 'next-themes'
-import { useToast } from "@/components/ui/use-toast"
-import { AuthButtons } from "@/components/AuthButtons"
-import { Icons } from "@/components/icons"
-import { useImageManager } from "@/lib/useImageManager"
-import { ImageUpload } from "@/components/ImageUpload"
-import { ImageGrid } from "@/components/ImageGrid"
-import { ImageToolbar } from "@/components/ImageToolbar"
-import { useQuery } from '@tanstack/react-query'
+import React, { useState } from 'react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { Toaster } from 'sonner'
+import { useImageManager, ServerImage } from '@/lib/useImageManager'
+import { ImageUpload } from '@/components/ImageUpload'
+import { ImageGrid } from '@/components/ImageGrid'
+import { ImageToolbar } from '@/components/ImageToolbar'
+import { ImageViewer } from '@/components/ImageViewer'
 
-function LandingPage() {
-  return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-background text-foreground">
-      <h1 className="text-4xl font-bold mb-6">Welcome to bg-remover</h1>
-      <p className="text-xl mb-8">Remove backgrounds from your images with ease.</p>
-      <AuthButtons />
-    </div>
-  )
-}
-
-export default function Home() {
-  const { data: session, status } = useSession()
-  const { theme, setTheme } = useTheme()
-  const { toast } = useToast()
-
-  // Use our custom image manager hook
-  const imageManager = useImageManager()
-
-  // Health check query
-  const { data: healthData } = useQuery({
-    queryKey: ['health'],
-    queryFn: async () => {
-      const response = await fetch('/api/health')
-      if (!response.ok) {
-        throw new Error('Health check failed')
-      }
-      return response.json()
+// Create a client
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5, // 5 minutes
+      retry: 1,
     },
-    refetchInterval: imageManager.isProcessing ? 5000 : false,
-    refetchIntervalInBackground: false,
-  })
+  },
+})
 
-  // Handle image processing with toast notifications
-  const handleProcessImages = async (imageIds?: string[]) => {
-    try {
-      await imageManager.processImages(imageIds)
-      
-      // Show success message only if no errors occurred
-      if (imageManager.errorCount === 0) {
-        toast({
-          title: "Success",
-          description: `Successfully processed ${imageManager.completedCount} image(s)`,
-        })
-      } else if (imageManager.completedCount > 0) {
-        toast({
-          title: "Partial Success",
-          description: `Processed ${imageManager.completedCount} image(s), ${imageManager.errorCount} failed`,
-          variant: "default"
-        })
-      }
-    } catch (error) {
-      toast({
-        title: "Processing Error",
-        description: error instanceof Error ? error.message : "Failed to process images",
-        variant: "destructive"
-      })
-    }
+function BackgroundRemoverApp() {
+  const [selectedImage, setSelectedImage] = useState<ServerImage | null>(null)
+  
+  const {
+    images,
+    isLoading,
+    isUploading,
+    isProcessing,
+    selectedImages,
+    error,
+    uploadImage,
+    processImage,
+    processSelectedImages,
+    updateImageTitle,
+    selectImage,
+    deselectImage,
+    selectAllImages,
+    deselectAllImages,
+    downloadImage,
+    downloadSelectedImages,
+    refreshImages,
+  } = useImageManager()
+
+  const processedCount = images.filter(img => img.processed).length
+  const selectedCount = selectedImages.size
+
+  const handleViewImage = (image: ServerImage) => {
+    setSelectedImage(image)
   }
 
-  const handleProcessAll = () => handleProcessImages()
-  const handleProcessSelected = () => handleProcessImages(imageManager.selectedImages)
-
-  const handleProcessImage = (id: string) => handleProcessImages([id])
-
-  // Calculate counts for toolbar
-  const selectedCount = imageManager.selectedImages.length
-  const processedCount = imageManager.images.filter(img => img.processed).length
-  const unprocessedCount = imageManager.images.length - processedCount
-
-  if (status === "loading") {
-    return <div className="flex justify-center items-center h-screen">
-      <Icons.spinner className="mr-2 my-auto h-24 w-24 animate-spin" />
-    </div>
-  }
-
-  if (!session) {
-    return <LandingPage />
+  const handleCloseViewer = () => {
+    setSelectedImage(null)
   }
 
   return (
-    <>
-      <header className="sticky top-0 z-10 bg-background shadow-md">
-        <div className="container mx-auto p-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold">rm-bg</h1>
-          <div className="flex items-center space-x-4">
-            {/* Health Status */}
-            {healthData && (
-              <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-                <div className={`w-2 h-2 rounded-full ${healthData.status === 'healthy' ? 'bg-green-500' : 'bg-red-500'}`} />
-                <span>
-                  {healthData.currently_processing ? 'Processing...' : 'Ready'}
-                </span>
-              </div>
-            )}
-            
-            <AuthButtons />
-            
-            {/* Theme Toggle */}
-            <button
-              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-              className="h-9 w-9 flex items-center justify-center rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground"
-            >
-              {theme === 'dark' ? (
-                <Sun className="h-4 w-4" />
-              ) : (
-                <Moon className="h-4 w-4" />
-              )}
-            </button>
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white shadow-sm border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-6">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">
+                Background Remover
+              </h1>
+              <p className="mt-1 text-sm text-gray-500">
+                Upload images and remove backgrounds with AI
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-sm text-gray-500">
+                Images are stored for 7 days
+              </p>
+            </div>
           </div>
         </div>
       </header>
 
-      <main className="container mx-auto p-4">
-        {imageManager.images.length === 0 ? (
-          <ImageUpload 
-            onImagesSelected={imageManager.addImages}
-            disabled={imageManager.isProcessing}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Upload Section */}
+        <div className="mb-8">
+          <ImageUpload
+            onUpload={uploadImage}
+            isUploading={isUploading}
           />
-        ) : (
-          <>
-            <ImageToolbar
-              images={imageManager.images}
-              selectedCount={selectedCount}
-              processedCount={processedCount}
-              unprocessedCount={unprocessedCount}
-              isProcessing={imageManager.isProcessing}
-              onProcessAll={handleProcessAll}
-              onProcessSelected={handleProcessSelected}
-              onDownloadAll={imageManager.downloadAll}
-              onDownloadSelected={imageManager.downloadSelected}
-              onDeleteAll={imageManager.removeAll}
-              onDeleteSelected={imageManager.removeSelected}
-              onSelectAll={imageManager.selectAll}
-              onDeselectAll={imageManager.deselectAll}
-              onClearErrors={imageManager.clearErrors}
-            />
+        </div>
 
-            <ImageGrid
-              images={imageManager.images}
-              onToggleSelection={imageManager.toggleSelection}
-              onRemoveImage={imageManager.removeImage}
-              onProcessImage={handleProcessImage}
-              onDownloadImage={imageManager.downloadImage}
-              isProcessing={imageManager.isProcessing}
-            />
-
-            {/* Floating Add Button */}
-            <button
-              className="fixed bottom-6 right-6 rounded-full p-3 bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 transition-colors"
-              onClick={() => document.getElementById('fileInput')?.click()}
-            >
-              <Plus className="h-6 w-6" />
-              <input
-                id="fileInput"
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={(e) => {
-                  const files = Array.from(e.target.files || []);
-                  if (files.length > 0) {
-                    imageManager.addImages(files);
-                  }
-                }}
-                className="hidden"
-              />
-            </button>
-          </>
+        {/* Error Display */}
+        {error && (
+          <div className="mb-6 bg-red-50 border border-red-200 rounded-md p-4">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-red-800">
+                  Error
+                </h3>
+                <div className="mt-2 text-sm text-red-700">
+                  {error}
+                </div>
+              </div>
+            </div>
+          </div>
         )}
-      </main>
-    </>
+
+        {/* Toolbar */}
+        {images.length > 0 && (
+          <ImageToolbar
+            totalImages={images.length}
+            selectedCount={selectedCount}
+            processedCount={processedCount}
+            isProcessing={isProcessing}
+            onSelectAll={selectAllImages}
+            onDeselectAll={deselectAllImages}
+            onProcessSelected={processSelectedImages}
+            onDownloadSelected={downloadSelectedImages}
+            onRefresh={refreshImages}
+          />
+        )}
+
+        {/* Images Grid */}
+        <div className="mt-6">
+          {isLoading ? (
+            <div className="text-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+              <p className="mt-2 text-gray-500">Loading images...</p>
+            </div>
+          ) : (
+            <ImageGrid
+              images={images}
+              selectedImages={selectedImages}
+              onSelectImage={selectImage}
+              onDeselectImage={deselectImage}
+              onProcessImage={processImage}
+              onDownloadImage={downloadImage}
+              onUpdateTitle={updateImageTitle}
+              onViewImage={handleViewImage}
+            />
+          )}
+        </div>
+      </div>
+
+      {/* Image Viewer Modal */}
+      {selectedImage && (
+        <ImageViewer
+          image={selectedImage}
+          onClose={handleCloseViewer}
+          onDownload={downloadImage}
+          onUpdateTitle={updateImageTitle}
+        />
+      )}
+
+      {/* Toast notifications */}
+      <Toaster position="top-right" />
+
+      {/* Footer with legal link */}
+      <footer className="w-full border-t border-gray-200 bg-white py-4 mt-12">
+        <div className="max-w-7xl mx-auto px-4 text-center text-sm text-gray-500">
+          <a href="/legal" className="underline hover:text-blue-600">Terms of Service & Privacy Policy</a>
+        </div>
+      </footer>
+    </div>
+  )
+}
+
+export default function Page() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <BackgroundRemoverApp />
+    </QueryClientProvider>
   )
 }

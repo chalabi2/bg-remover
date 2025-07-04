@@ -1,316 +1,308 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 
-export interface ImageFile {
+export interface ServerImage {
   id: string;
-  file: File;
-  preview: string;
-  processed?: string;
-  isSelected: boolean;
-  filename: string;
-  uploadTime: number;
-  status: 'pending' | 'processing' | 'completed' | 'error';
-  error?: string;
-  progress?: number;
+  title: string;
+  original_filename: string;
+  upload_time: string;
+  status: 'uploaded' | 'processing' | 'completed' | 'error';
+  processed: boolean;
+  has_original: boolean;
+  has_processed: boolean;
+}
+
+export interface UploadResponse {
+  id: string;
+  title: string;
+  message: string;
 }
 
 export interface ImageManagerState {
-  images: ImageFile[];
-  selectedImages: string[];
+  images: ServerImage[];
+  isLoading: boolean;
+  isUploading: boolean;
   isProcessing: boolean;
-  processingCount: number;
-  completedCount: number;
-  errorCount: number;
+  selectedImages: Set<string>;
+  error: string | null;
 }
 
 export interface ImageManagerActions {
-  addImages: (files: File[]) => void;
-  removeImage: (id: string) => void;
-  removeSelected: () => void;
-  removeAll: () => void;
-  toggleSelection: (id: string) => void;
-  selectAll: () => void;
-  deselectAll: () => void;
-  processImages: (imageIds?: string[]) => Promise<void>;
-  clearErrors: () => void;
-  downloadImage: (image: ImageFile) => void;
-  downloadSelected: () => void;
-  downloadAll: () => void;
+  uploadImage: (file: File, title?: string) => Promise<void>;
+  processImage: (imageId: string) => Promise<void>;
+  processSelectedImages: () => Promise<void>;
+  updateImageTitle: (imageId: string, title: string) => Promise<void>;
+  selectImage: (imageId: string) => void;
+  deselectImage: (imageId: string) => void;
+  selectAllImages: () => void;
+  deselectAllImages: () => void;
+  downloadImage: (imageId: string) => Promise<void>;
+  downloadSelectedImages: () => Promise<void>;
+  refreshImages: () => void;
 }
 
 export function useImageManager(): ImageManagerState & ImageManagerActions {
-  const [images, setImages] = useState<ImageFile[]>([]);
-  const [selectedImages, setSelectedImages] = useState<string[]>([]);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [processingCount, setProcessingCount] = useState(0);
-  const [completedCount, setCompletedCount] = useState(0);
-  const [errorCount, setErrorCount] = useState(0);
-  
-  const processingRef = useRef<Set<string>>(new Set());
+  const queryClient = useQueryClient();
+  const [selectedImages, setSelectedImages] = useState<Set<string>>(new Set());
+  const [error, setError] = useState<string | null>(null);
 
-  // Load images from localStorage on mount
-  useEffect(() => {
-    const storedImages = localStorage.getItem('backgroundRemovalImages');
-    if (storedImages) {
+  // Query for fetching images
+  const {
+    data: images = [],
+    isLoading,
+    refetch: refreshImages,
+  } = useQuery<ServerImage[]>({
+    queryKey: ['images'],
+    queryFn: async () => {
+      const response = await fetch('/api/images');
+      if (!response.ok) {
+        throw new Error('Failed to fetch images');
+      }
+      return response.json();
+    },
+    refetchInterval: 5000, // Poll every 5 seconds for updates
+  });
+
+  // Upload mutation
+  const uploadMutation = useMutation<UploadResponse, Error, { file: File; title?: string }>({
+    mutationFn: async ({ file, title }) => {
+      const formData = new FormData();
+      formData.append('image', file);
+      if (title) {
+        formData.append('title', title);
+      }
+
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Upload failed');
+      }
+
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast.success(`Image "${data.title}" uploaded successfully`);
+      queryClient.invalidateQueries({ queryKey: ['images'] });
+    },
+    onError: (error) => {
+      toast.error(error.message);
+      setError(error.message);
+    },
+  });
+
+  // Process mutation
+  const processMutation = useMutation<void, Error, string>({
+    mutationFn: async (imageId: string) => {
+      const response = await fetch('/api/remove-background', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ file_id: imageId }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Processing failed');
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['images'] });
+    },
+    onError: (error) => {
+      toast.error(error.message);
+      setError(error.message);
+    },
+  });
+
+  // Update title mutation
+  const updateTitleMutation = useMutation<void, Error, { imageId: string; title: string }>({
+    mutationFn: async ({ imageId, title }) => {
+      const response = await fetch(`/api/images/${imageId}/title`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ title }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update title');
+      }
+
+      return response.json();
+    },
+    onSuccess: (_, { title }) => {
+      toast.success(`Title updated to "${title}"`);
+      queryClient.invalidateQueries({ queryKey: ['images'] });
+    },
+    onError: (error) => {
+      toast.error(error.message);
+      setError(error.message);
+    },
+  });
+
+  // Upload image
+  const uploadImage = useCallback(async (file: File, title?: string) => {
+    setError(null);
+    await uploadMutation.mutateAsync({ file, title });
+  }, [uploadMutation]);
+
+  // Process single image
+  const processImage = useCallback(async (imageId: string) => {
+    setError(null);
+    toast.info('Processing image...');
+    await processMutation.mutateAsync(imageId);
+    toast.success('Background removed successfully!');
+  }, [processMutation]);
+
+  // Process selected images
+  const processSelectedImages = useCallback(async () => {
+    if (selectedImages.size === 0) {
+      toast.error('No images selected');
+      return;
+    }
+
+    setError(null);
+    const selectedArray = Array.from(selectedImages);
+    
+    toast.info(`Processing ${selectedArray.length} image${selectedArray.length > 1 ? 's' : ''}...`);
+    
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const imageId of selectedArray) {
       try {
-        const parsed = JSON.parse(storedImages);
-        const validImages = parsed
-          .filter((img: any) => img && img.id && img.preview)
-          .map((img: any) => ({
-            ...img,
-            filename: img.filename || `image_${img.id}`,
-            uploadTime: img.uploadTime || Date.now(),
-            isSelected: false,
-            status: img.status || 'pending',
-          }));
-        setImages(validImages);
+        await processMutation.mutateAsync(imageId);
+        successCount++;
       } catch (error) {
-        console.error('Error loading images from localStorage:', error);
-        localStorage.removeItem('backgroundRemovalImages');
+        errorCount++;
+        console.error(`Failed to process image ${imageId}:`, error);
       }
     }
-  }, []);
 
-  // Save images to localStorage whenever they change
-  useEffect(() => {
-    if (images.length > 0) {
-      localStorage.setItem('backgroundRemovalImages', JSON.stringify(images));
-    } else {
-      localStorage.removeItem('backgroundRemovalImages');
+    if (successCount > 0) {
+      toast.success(`Successfully processed ${successCount} image${successCount > 1 ? 's' : ''}`);
     }
-  }, [images]);
+    
+    if (errorCount > 0) {
+      toast.error(`Failed to process ${errorCount} image${errorCount > 1 ? 's' : ''}`);
+    }
+  }, [selectedImages, processMutation]);
 
-  const addImages = useCallback((files: File[]) => {
-    const newImages: ImageFile[] = files.map(file => ({
-      id: Math.random().toString(36).substr(2, 9),
-      file,
-      preview: URL.createObjectURL(file),
-      filename: file.name,
-      uploadTime: Date.now(),
-      isSelected: false,
-      status: 'pending',
-    }));
-    setImages(prev => [...prev, ...newImages]);
+  // Update image title
+  const updateImageTitle = useCallback(async (imageId: string, title: string) => {
+    setError(null);
+    await updateTitleMutation.mutateAsync({ imageId, title });
+  }, [updateTitleMutation]);
+
+  // Selection actions
+  const selectImage = useCallback((imageId: string) => {
+    setSelectedImages(prev => new Set([...prev, imageId]));
   }, []);
 
-  const removeImage = useCallback((id: string) => {
-    setImages(prev => {
-      const image = prev.find(img => img.id === id);
-      if (image) {
-        URL.revokeObjectURL(image.preview);
-        if (image.processed) {
-          URL.revokeObjectURL(image.processed);
-        }
-      }
-      return prev.filter(img => img.id !== id);
-    });
-    setSelectedImages(prev => prev.filter(selectedId => selectedId !== id));
-  }, []);
-
-  const removeSelected = useCallback(() => {
-    const selectedImageObjects = images.filter(img => img.isSelected);
-    selectedImageObjects.forEach(image => {
-      URL.revokeObjectURL(image.preview);
-      if (image.processed) {
-        URL.revokeObjectURL(image.processed);
-      }
-    });
-    setImages(prev => prev.filter(img => !img.isSelected));
-    setSelectedImages([]);
-  }, [images]);
-
-  const removeAll = useCallback(() => {
-    images.forEach(image => {
-      URL.revokeObjectURL(image.preview);
-      if (image.processed) {
-        URL.revokeObjectURL(image.processed);
-      }
-    });
-    setImages([]);
-    setSelectedImages([]);
-    setProcessingCount(0);
-    setCompletedCount(0);
-    setErrorCount(0);
-  }, [images]);
-
-  const toggleSelection = useCallback((id: string) => {
-    setImages(prev => 
-      prev.map(img => 
-        img.id === id ? { ...img, isSelected: !img.isSelected } : img
-      )
-    );
+  const deselectImage = useCallback((imageId: string) => {
     setSelectedImages(prev => {
-      const image = images.find(img => img.id === id);
-      if (image?.isSelected) {
-        return prev.filter(selectedId => selectedId !== id);
-      } else {
-        return [...prev, id];
-      }
+      const newSet = new Set(prev);
+      newSet.delete(imageId);
+      return newSet;
     });
+  }, []);
+
+  const selectAllImages = useCallback(() => {
+    setSelectedImages(new Set(images.map(img => img.id)));
   }, [images]);
 
-  const selectAll = useCallback(() => {
-    setImages(prev => prev.map(img => ({ ...img, isSelected: true })));
-    setSelectedImages(images.map(img => img.id));
-  }, [images]);
-
-  const deselectAll = useCallback(() => {
-    setImages(prev => prev.map(img => ({ ...img, isSelected: false })));
-    setSelectedImages([]);
+  const deselectAllImages = useCallback(() => {
+    setSelectedImages(new Set());
   }, []);
 
-  const clearErrors = useCallback(() => {
-    setImages(prev => 
-      prev.map(img => 
-        img.status === 'error' 
-          ? { ...img, status: 'pending', error: undefined }
-          : img
-      )
-    );
-    setErrorCount(0);
-  }, []);
+  // Download actions
+  const downloadImage = useCallback(async (imageId: string) => {
+    const image = images.find(img => img.id === imageId);
+    if (!image) return;
 
-  const downloadImage = useCallback((image: ImageFile) => {
-    if (image.processed) {
-      const link = document.createElement('a');
-      link.href = image.processed;
-      link.download = `processed_${image.filename}`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
-  }, []);
-
-  const downloadSelected = useCallback(() => {
-    const selectedProcessed = images.filter(img => img.isSelected && img.processed);
-    selectedProcessed.forEach(image => downloadImage(image));
-  }, [images, downloadImage]);
-
-  const downloadAll = useCallback(() => {
-    const processedImages = images.filter(img => img.processed);
-    processedImages.forEach(image => downloadImage(image));
-  }, [images, downloadImage]);
-
-  const processImages = useCallback(async (imageIds?: string[]) => {
-    const imagesToProcess = imageIds 
-      ? images.filter(img => imageIds.includes(img.id) && !img.processed)
-      : images.filter(img => !img.processed);
-
-    if (imagesToProcess.length === 0) return;
-
-    setIsProcessing(true);
-    setProcessingCount(imagesToProcess.length);
-    processingRef.current.clear();
-
-    // Update status to processing
-    setImages(prev => 
-      prev.map(img => 
-        imagesToProcess.some(processImg => processImg.id === img.id)
-          ? { ...img, status: 'processing', progress: 0 }
-          : img
-      )
-    );
-
-    for (const image of imagesToProcess) {
-      if (processingRef.current.has(image.id)) continue;
-      processingRef.current.add(image.id);
-
-      try {
-        const formData = new FormData();
-        formData.append('image', image.file, image.filename);
-
-        // Update progress to 25%
-        setImages(prev => 
-          prev.map(img => 
-            img.id === image.id ? { ...img, progress: 25 } : img
-          )
-        );
-
-        const response = await fetch('/api/remove-background', {
-          method: 'POST',
-          body: formData,
-        });
-
-        if (response.ok) {
-          const blob = await response.blob();
-          const processedUrl = URL.createObjectURL(blob);
-          
-          setImages(prev => 
-            prev.map(img => 
-              img.id === image.id 
-                ? { ...img, processed: processedUrl, status: 'completed', progress: 100 }
-                : img
-            )
-          );
-          setCompletedCount(prev => prev + 1);
-        } else {
-          let errorMessage = `HTTP ${response.status}: Failed to process image`;
-          
-          try {
-            const errorData = await response.json();
-            errorMessage = errorData.error || errorMessage;
-          } catch {
-            // If JSON parsing fails, try to get text
-            try {
-              const errorText = await response.text();
-              errorMessage = errorText || errorMessage;
-            } catch {
-              // Use default error message
-            }
-          }
-
-          // Handle specific error cases
-          if (response.status === 413) {
-            errorMessage = `File size too large. Maximum size is 50MB.`;
-          } else if (response.status === 403) {
-            errorMessage = `Access denied. Please check your permissions.`;
-          } else if (response.status === 400) {
-            errorMessage = `Invalid file format. Please upload a valid image.`;
-          }
-
-          throw new Error(errorMessage);
-        }
-      } catch (error) {
-        console.error('Error processing image:', error);
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-        
-        setImages(prev => 
-          prev.map(img => 
-            img.id === image.id 
-              ? { ...img, status: 'error', error: errorMessage }
-              : img
-          )
-        );
-        setErrorCount(prev => prev + 1);
-      } finally {
-        processingRef.current.delete(image.id);
-        setProcessingCount(prev => prev - 1);
+    try {
+      const response = await fetch(`/api/images/${imageId}/processed`);
+      if (!response.ok) {
+        throw new Error('Failed to download image');
       }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${image.title || 'image'}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast.success(`Downloaded "${image.title}"`);
+    } catch (error) {
+      toast.error('Failed to download image');
+      console.error('Download error:', error);
+    }
+  }, [images]);
+
+  const downloadSelectedImages = useCallback(async () => {
+    if (selectedImages.size === 0) {
+      toast.error('No images selected');
+      return;
     }
 
-    setIsProcessing(false);
-  }, [images]);
+    const selectedArray = Array.from(selectedImages);
+    const processedImages = images.filter(img => 
+      selectedArray.includes(img.id) && img.processed
+    );
+
+    if (processedImages.length === 0) {
+      toast.error('No processed images selected');
+      return;
+    }
+
+    if (processedImages.length === 1) {
+      await downloadImage(processedImages[0].id);
+      return;
+    }
+
+    // For multiple images, we'd need to implement zip download
+    // For now, download them one by one
+    toast.info(`Downloading ${processedImages.length} images...`);
+    
+    for (const image of processedImages) {
+      await downloadImage(image.id);
+    }
+  }, [selectedImages, images, downloadImage]);
 
   return {
     // State
     images,
+    isLoading,
+    isUploading: uploadMutation.isPending,
+    isProcessing: processMutation.isPending,
     selectedImages,
-    isProcessing,
-    processingCount,
-    completedCount,
-    errorCount,
+    error,
     
     // Actions
-    addImages,
-    removeImage,
-    removeSelected,
-    removeAll,
-    toggleSelection,
-    selectAll,
-    deselectAll,
-    processImages,
-    clearErrors,
+    uploadImage,
+    processImage,
+    processSelectedImages,
+    updateImageTitle,
+    selectImage,
+    deselectImage,
+    selectAllImages,
+    deselectAllImages,
     downloadImage,
-    downloadSelected,
-    downloadAll,
+    downloadSelectedImages,
+    refreshImages,
   };
 } 
