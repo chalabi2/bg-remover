@@ -149,7 +149,7 @@ function TermsOfService() {
           </p>
           <div className="bg-gray-50 p-3 rounded">
             <p className="font-medium">DMCA Agent</p>
-            <p>Email: dmca@yourdomain.com</p>
+            <p>Email: chalabi@jchalabi.xyz</p>
             <p>Include: Description of work, location on service, your contact information, and statement of good faith belief.</p>
           </div>
         </div>
@@ -353,7 +353,7 @@ function PrivacyPolicy() {
             <li><strong>Correction:</strong> Request correction of inaccurate data</li>
             <li><strong>Portability:</strong> Request a copy of your data</li>
           </ul>
-          <p>To exercise these rights, contact us at privacy@yourdomain.com</p>
+          <p>To exercise these rights, contact us at chalabi@jchalabi.xyz</p>
         </div>
       )
     },
@@ -379,7 +379,7 @@ function PrivacyPolicy() {
           <p>For privacy-related questions or concerns:</p>
           <div className="bg-gray-50 p-3 rounded">
             <p className="font-medium">Privacy Officer</p>
-            <p>Email: privacy@yourdomain.com</p>
+            <p>Email: chalabi@jchalabi.xyz</p>
             <p>Response time: Within 30 days</p>
           </div>
         </div>
