@@ -2,6 +2,7 @@ import { AuthButtons } from "./AuthButtons"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { ArrowRight, Sparkles, Zap, Shield, Upload } from "lucide-react"
+import { signIn } from "next-auth/react"
 
 export function LandingPage() {
   return (
@@ -13,21 +14,20 @@ export function LandingPage() {
             {/* Left Side - Content */}
             <div className="space-y-8">
               <div className="space-y-6">
-                {/* Logo */}
-                <div className="flex justify-center lg:justify-start mb-6">
+                {/* Logo and Title inline */}
+                <div className="flex items-center justify-center lg:justify-start mb-6">
                   <Image 
                     src="/rmbg.svg" 
                     alt="BG-Remover Logo" 
-                    width={120} 
-                    height={120} 
-                    className="drop-shadow-lg"
+                    width={80} 
+                    height={80} 
+                    className="drop-shadow-lg mr-4"
                   />
+                  <h1 className="text-5xl lg:text-6xl font-bold text-foreground leading-tight">
+                    Remove Backgrounds
+                  </h1>
                 </div>
                 
-                <h1 className="text-5xl lg:text-6xl font-bold text-foreground leading-tight">
-                  Remove Backgrounds
-                  <span className="block text-primary">Instantly</span>
-                </h1>
                 <p className="text-xl text-muted-foreground leading-relaxed">
                   Transform your images with AI-powered background removal. 
                   Upload any photo and get professional results in seconds - 
@@ -57,7 +57,11 @@ export function LandingPage() {
 
               {/* CTA Section */}
               <div className="space-y-4">
-                <Button size="lg" className="bg-primary hover:bg-primary/90 text-primary-foreground px-8 py-3 text-lg">
+                <Button 
+                  size="lg" 
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground px-8 py-3 text-lg"
+                  onClick={() => signIn('google')}
+                >
                   Get Started Free
                   <ArrowRight className="ml-2 h-5 w-5" />
                 </Button>
