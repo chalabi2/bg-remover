@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { AuthButtons } from "@/components/AuthButtons";
 import { useTheme } from "next-themes";
 import { Sun, Moon } from "lucide-react";
+import Image from "next/image";
 
 function ThemeToggle() {
   const { theme, setTheme } = useTheme();
@@ -31,7 +32,16 @@ export function AppHeader() {
   
   return (
     <header className="w-full flex justify-between items-center px-6 py-4 bg-background border-b border-border">
-      <div className="font-bold text-xl text-foreground">BG-Remover</div>
+      <div className="flex items-center">
+        <Image 
+          src="/rmbg.svg" 
+          alt="BG-Remover Logo" 
+          width={40} 
+          height={40} 
+          className="mr-2"
+        />
+        <span className="font-bold text-xl text-foreground">BG-Remover</span>
+      </div>
       <div className="flex items-center">
         <AuthButtons />
         <ThemeToggle />

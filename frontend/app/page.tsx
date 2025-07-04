@@ -105,7 +105,7 @@ function BackgroundRemoverApp() {
         <div className="mt-6">
           {isLoading ? (
             <div className="text-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
               <p className="mt-2 text-muted-foreground">Loading images...</p>
             </div>
           ) : (
@@ -139,7 +139,7 @@ function BackgroundRemoverApp() {
       {/* Footer with legal link */}
       <footer className="w-full border-t border-border bg-background py-4 mt-12">
         <div className="max-w-7xl mx-auto px-4 text-center text-sm text-muted-foreground">
-          <a href="/legal" className="underline hover:text-blue-600">Terms of Service & Privacy Policy</a>
+          <a href="/legal" className="underline hover:text-primary">Terms of Service & Privacy Policy</a>
         </div>
       </footer>
     </div>
