@@ -178,7 +178,7 @@ function TermsOfService() {
       content: (
         <div className="space-y-3">
           <p>
-            This service is provided "as is" without warranties of any kind.
+            This service is provided &quot;as is&quot; without warranties of any kind.
           </p>
           <p>
             We are not liable for any damages, including but not limited to direct, indirect, incidental, or consequential damages.
