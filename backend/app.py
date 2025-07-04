@@ -450,6 +450,43 @@ def update_title(file_id):
         logger.error(f"Update title error: {str(e)}")
         return {'error': 'Failed to update title'}, 500
 
+@app.route('/image/<file_id>', methods=['DELETE'])
+@require_domain
+def delete_image(file_id):
+    """Delete image and its files"""
+    try:
+        metadata = load_metadata()
+        if file_id not in metadata:
+            return {'error': 'Image not found'}, 404
+        
+        # Get file data for logging
+        file_data = metadata[file_id]
+        title = file_data.get('title', file_data.get('original_filename', 'Untitled'))
+        
+        # Delete files from filesystem
+        original_path = os.path.join(UPLOAD_FOLDER, f"{file_id}.jpg")
+        processed_path = os.path.join(PROCESSED_FOLDER, f"{file_id}.png")
+        
+        files_deleted = []
+        if os.path.exists(original_path):
+            os.remove(original_path)
+            files_deleted.append('original')
+        
+        if os.path.exists(processed_path):
+            os.remove(processed_path)
+            files_deleted.append('processed')
+        
+        # Remove from metadata
+        del metadata[file_id]
+        save_metadata(metadata)
+        
+        logger.info(f"Deleted image: {file_id} - {title} (files: {', '.join(files_deleted)})")
+        return {'message': 'Image deleted successfully', 'files_deleted': files_deleted}
+        
+    except Exception as e:
+        logger.error(f"Delete image error: {str(e)}")
+        return {'error': 'Failed to delete image'}, 500
+
 @app.route('/image/<file_id>/original', methods=['GET'])
 @require_domain
 def get_original_image(file_id):

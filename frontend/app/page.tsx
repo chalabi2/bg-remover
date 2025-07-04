@@ -34,6 +34,8 @@ function BackgroundRemoverApp() {
     processImage,
     processSelectedImages,
     updateImageTitle,
+    deleteImage,
+    deleteSelectedImages,
     selectImage,
     deselectImage,
     selectAllImages,
@@ -97,6 +99,7 @@ function BackgroundRemoverApp() {
             onDeselectAll={deselectAllImages}
             onProcessSelected={processSelectedImages}
             onDownloadSelected={downloadSelectedImages}
+            onDeleteSelected={deleteSelectedImages}
             onRefresh={refreshImages}
           />
         )}
@@ -117,6 +120,7 @@ function BackgroundRemoverApp() {
               onProcessImage={processImage}
               onDownloadImage={downloadImage}
               onUpdateTitle={updateImageTitle}
+              onDeleteImage={deleteImage}
               onViewImage={handleViewImage}
             />
           )}

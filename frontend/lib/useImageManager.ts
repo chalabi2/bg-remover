@@ -33,6 +33,8 @@ export interface ImageManagerActions {
   processImage: (imageId: string) => Promise<void>;
   processSelectedImages: () => Promise<void>;
   updateImageTitle: (imageId: string, title: string) => Promise<void>;
+  deleteImage: (imageId: string) => Promise<void>;
+  deleteSelectedImages: () => Promise<void>;
   selectImage: (imageId: string) => void;
   deselectImage: (imageId: string) => void;
   selectAllImages: () => void;
@@ -134,42 +136,41 @@ export function useImageManager(): ImageManagerState & ImageManagerActions {
       });
 
       if (!response.ok) {
-        let errorMessage = 'Failed to update title';
-        
-        // Check if response is JSON before parsing
-        const contentType = response.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
-          try {
-            const errorData = await response.json();
-            errorMessage = errorData.error || errorMessage;
-          } catch (jsonError) {
-            console.error('Failed to parse error JSON:', jsonError);
-            errorMessage = `Update failed (${response.status})`;
-          }
-        } else {
-          // Non-JSON response
-          try {
-            const errorText = await response.text();
-            errorMessage = errorText || `Update failed (${response.status})`;
-          } catch (textError) {
-            errorMessage = `Update failed (${response.status})`;
-          }
-        }
-        
-        throw new Error(errorMessage);
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update title');
       }
 
-      // For successful responses, we don't need to parse the result
-      // The mutation just needs to complete successfully
-      return;
+      return response.json();
     },
-    onSuccess: (_, { title }) => {
-      toast.success(`Title updated to "${title}"`);
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['images'] });
     },
     onError: (error) => {
-      toast.error(error.message || 'Failed to update title');
-      setError(error.message || 'Failed to update title');
+      toast.error(error.message);
+      setError(error.message);
+    },
+  });
+
+  // Delete mutation
+  const deleteMutation = useMutation<void, Error, string>({
+    mutationFn: async (imageId: string) => {
+      const response = await fetch(`/api/images/${imageId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete image');
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['images'] });
+    },
+    onError: (error) => {
+      toast.error(error.message);
+      setError(error.message);
     },
   });
 
@@ -226,6 +227,56 @@ export function useImageManager(): ImageManagerState & ImageManagerActions {
     setError(null);
     await updateTitleMutation.mutateAsync({ imageId, title });
   }, [updateTitleMutation]);
+
+  // Delete single image
+  const deleteImage = useCallback(async (imageId: string) => {
+    setError(null);
+    const imageToDelete = images.find(img => img.id === imageId);
+    const imageName = imageToDelete?.title || 'Unknown';
+    
+    await deleteMutation.mutateAsync(imageId);
+    toast.success(`Image "${imageName}" deleted successfully`);
+    
+    // Remove from selection if it was selected
+    setSelectedImages(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(imageId);
+      return newSet;
+    });
+  }, [deleteMutation, images]);
+
+  // Delete selected images
+  const deleteSelectedImages = useCallback(async () => {
+    if (selectedImages.size === 0) {
+      toast.error('No images selected');
+      return;
+    }
+
+    setError(null);
+    const selectedArray = Array.from(selectedImages);
+    
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const imageId of selectedArray) {
+      try {
+        await deleteMutation.mutateAsync(imageId);
+        successCount++;
+      } catch (error) {
+        errorCount++;
+        console.error(`Failed to delete image ${imageId}:`, error);
+      }
+    }
+
+    if (successCount > 0) {
+      toast.success(`Successfully deleted ${successCount} image${successCount > 1 ? 's' : ''}`);
+      setSelectedImages(new Set()); // Clear selection
+    }
+    
+    if (errorCount > 0) {
+      toast.error(`Failed to delete ${errorCount} image${errorCount > 1 ? 's' : ''}`);
+    }
+  }, [selectedImages, deleteMutation]);
 
   // Selection actions
   const selectImage = useCallback((imageId: string) => {
@@ -320,6 +371,8 @@ export function useImageManager(): ImageManagerState & ImageManagerActions {
     processImage,
     processSelectedImages,
     updateImageTitle,
+    deleteImage,
+    deleteSelectedImages,
     selectImage,
     deselectImage,
     selectAllImages,

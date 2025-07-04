@@ -9,7 +9,8 @@ import {
   Eye,
   Clock,
   AlertCircle,
-  CheckCircle
+  CheckCircle,
+  Trash2
 } from 'lucide-react';
 
 interface ImageGridProps {
@@ -20,6 +21,7 @@ interface ImageGridProps {
   onProcessImage: (imageId: string) => Promise<void>;
   onDownloadImage: (imageId: string) => Promise<void>;
   onUpdateTitle: (imageId: string, title: string) => Promise<void>;
+  onDeleteImage: (imageId: string) => Promise<void>;
   onViewImage: (image: ServerImage) => void;
 }
 
@@ -31,10 +33,12 @@ export function ImageGrid({
   onProcessImage,
   onDownloadImage,
   onUpdateTitle,
+  onDeleteImage,
   onViewImage
 }: ImageGridProps) {
   const [editingTitle, setEditingTitle] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
+  const [deletingImage, setDeletingImage] = useState<string | null>(null);
 
   const handleEditTitle = (image: ServerImage) => {
     setEditingTitle(image.id);
@@ -59,6 +63,15 @@ export function ImageGrid({
       handleSaveTitle(imageId);
     } else if (e.key === 'Escape') {
       handleCancelEdit();
+    }
+  };
+
+  const handleDeleteImage = async (imageId: string) => {
+    setDeletingImage(imageId);
+    try {
+      await onDeleteImage(imageId);
+    } finally {
+      setDeletingImage(null);
     }
   };
 
@@ -105,6 +118,7 @@ export function ImageGrid({
       {images.map((image) => {
         const isSelected = selectedImages.has(image.id);
         const isEditing = editingTitle === image.id;
+        const isDeleting = deletingImage === image.id;
 
         return (
           <div
@@ -129,8 +143,24 @@ export function ImageGrid({
               </button>
             </div>
 
-            {/* Status indicator */}
+            {/* Delete button */}
             <div className="absolute top-2 right-2 z-10">
+              <button
+                onClick={() => handleDeleteImage(image.id)}
+                disabled={isDeleting}
+                className="w-8 h-8 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Delete image"
+              >
+                {isDeleting ? (
+                  <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                ) : (
+                  <Trash2 className="h-3 w-3" />
+                )}
+              </button>
+            </div>
+
+            {/* Status indicator */}
+            <div className="absolute top-2 right-12 z-10">
               <div className="flex items-center space-x-1 bg-card/90 backdrop-blur-sm rounded-full px-2 py-1">
                 {getStatusIcon(image)}
                 <span className="text-xs font-medium text-muted-foreground">

@@ -17,6 +17,7 @@ interface ImageToolbarProps {
   onDeselectAll: () => void;
   onProcessSelected: () => Promise<void>;
   onDownloadSelected: () => Promise<void>;
+  onDeleteSelected: () => Promise<void>;
   onRefresh: () => void;
 }
 
@@ -29,6 +30,7 @@ export function ImageToolbar({
   onDeselectAll,
   onProcessSelected,
   onDownloadSelected,
+  onDeleteSelected,
   onRefresh
 }: ImageToolbarProps) {
   const isAllSelected = selectedCount === totalImages && totalImages > 0;
@@ -36,14 +38,14 @@ export function ImageToolbar({
   const hasProcessedSelected = selectedCount > 0; // We'll need to check if selected images are processed
 
   return (
-    <div className="bg-white border-b border-gray-200 px-4 py-3">
+    <div className="bg-card border-b border-border px-4 py-3">
       <div className="flex items-center justify-between">
         {/* Left side - Selection and counts */}
         <div className="flex items-center space-x-4">
           <div className="flex items-center space-x-2">
             <button
               onClick={isAllSelected ? onDeselectAll : onSelectAll}
-              className="flex items-center space-x-2 text-gray-600 hover:text-gray-900"
+              className="flex items-center space-x-2 text-muted-foreground hover:text-foreground"
             >
               {isAllSelected ? (
                 <CheckSquare className="h-5 w-5" />
@@ -56,7 +58,7 @@ export function ImageToolbar({
             </button>
           </div>
 
-          <div className="text-sm text-gray-500">
+          <div className="text-sm text-muted-foreground">
             {hasSelected ? (
               <span>{selectedCount} of {totalImages} selected</span>
             ) : (
@@ -75,7 +77,7 @@ export function ImageToolbar({
         <div className="flex items-center space-x-2">
           <button
             onClick={onRefresh}
-            className="text-gray-400 hover:text-gray-600 p-2 rounded-md hover:bg-gray-100"
+            className="text-muted-foreground hover:text-foreground p-2 rounded-md hover:bg-muted"
             title="Refresh images"
           >
             <RefreshCw className="h-4 w-4" />
@@ -86,7 +88,7 @@ export function ImageToolbar({
               <button
                 onClick={onProcessSelected}
                 disabled={isProcessing}
-                className="bg-blue-600 text-white px-3 py-1.5 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-1"
+                className="bg-primary text-primary-foreground px-3 py-1.5 rounded-md hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-1"
               >
                 {isProcessing ? (
                   <>
@@ -107,6 +109,14 @@ export function ImageToolbar({
               >
                 <Download className="h-3 w-3" />
                 <span>Download Selected</span>
+              </button>
+
+              <button
+                onClick={onDeleteSelected}
+                className="bg-red-600 text-white px-3 py-1.5 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 flex items-center space-x-1"
+              >
+                <Trash2 className="h-3 w-3" />
+                <span>Delete Selected</span>
               </button>
             </>
           )}

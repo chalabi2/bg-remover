@@ -1,0 +1,77 @@
+import { NextRequest, NextResponse } from 'next/server';
+
+const BACKEND_URL = process.env.BACKEND_URL || 'https://backend-rmbg.jchalabi.xyz';
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const { id } = params;
+
+    const response = await fetch(`${BACKEND_URL}/image/${id}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        'Origin': request.headers.get('origin') || '',
+        'Referer': request.headers.get('referer') || '',
+      },
+    });
+
+    if (!response.ok) {
+      let errorMessage = 'Failed to delete image';
+      
+      // Check if response is JSON before parsing
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch (jsonError) {
+          console.error('Failed to parse error JSON:', jsonError);
+        }
+      } else {
+        // Non-JSON response, get as text
+        try {
+          const errorText = await response.text();
+          errorMessage = errorText || errorMessage;
+        } catch (textError) {
+          console.error('Failed to read error text:', textError);
+        }
+      }
+      
+      console.error('Delete image error:', response.status, errorMessage);
+      return NextResponse.json(
+        { error: errorMessage },
+        { status: response.status }
+      );
+    }
+
+    // Check if successful response is JSON before parsing
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      try {
+        const result = await response.json();
+        return NextResponse.json(result);
+      } catch (jsonError) {
+        console.error('Failed to parse success JSON:', jsonError);
+        // If JSON parsing fails but request was successful, return a default success response
+        return NextResponse.json({ 
+          message: 'Image deleted successfully' 
+        });
+      }
+    } else {
+      // Non-JSON success response, return default success
+      return NextResponse.json({ 
+        message: 'Image deleted successfully' 
+      });
+    }
+
+  } catch (error) {
+    console.error('Delete image API error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+} 
