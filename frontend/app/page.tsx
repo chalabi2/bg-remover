@@ -8,6 +8,7 @@ import { ImageUpload } from '@/components/ImageUpload'
 import { ImageGrid } from '@/components/ImageGrid'
 import { ImageToolbar } from '@/components/ImageToolbar'
 import { ImageViewer } from '@/components/ImageViewer'
+import { AuthGuard } from '@/components/AuthGuard'
 
 // Create a client
 const queryClient = new QueryClient({
@@ -54,21 +55,21 @@ function BackgroundRemoverApp() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background text-foreground">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200">
+      <header className="bg-background shadow-sm border-b border-border">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">
+              <h1 className="text-3xl font-bold text-foreground">
                 Background Remover
               </h1>
-              <p className="mt-1 text-sm text-gray-500">
+              <p className="mt-1 text-sm text-muted-foreground">
                 Upload images and remove backgrounds with AI
               </p>
             </div>
             <div className="text-right">
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-muted-foreground">
                 Images are stored for 7 days
               </p>
             </div>
@@ -87,18 +88,18 @@ function BackgroundRemoverApp() {
 
         {/* Error Display */}
         {error && (
-          <div className="mb-6 bg-red-50 border border-red-200 rounded-md p-4">
+          <div className="mb-6 bg-destructive/10 border border-destructive/20 rounded-md p-4">
             <div className="flex">
               <div className="flex-shrink-0">
-                <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                <svg className="h-5 w-5 text-destructive" viewBox="0 0 20 20" fill="currentColor">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                 </svg>
               </div>
               <div className="ml-3">
-                <h3 className="text-sm font-medium text-red-800">
+                <h3 className="text-sm font-medium text-destructive">
                   Error
                 </h3>
-                <div className="mt-2 text-sm text-red-700">
+                <div className="mt-2 text-sm text-destructive">
                   {error}
                 </div>
               </div>
@@ -126,7 +127,7 @@ function BackgroundRemoverApp() {
           {isLoading ? (
             <div className="text-center py-12">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-              <p className="mt-2 text-gray-500">Loading images...</p>
+              <p className="mt-2 text-muted-foreground">Loading images...</p>
             </div>
           ) : (
             <ImageGrid
@@ -157,8 +158,8 @@ function BackgroundRemoverApp() {
       <Toaster position="top-right" />
 
       {/* Footer with legal link */}
-      <footer className="w-full border-t border-gray-200 bg-white py-4 mt-12">
-        <div className="max-w-7xl mx-auto px-4 text-center text-sm text-gray-500">
+      <footer className="w-full border-t border-border bg-background py-4 mt-12">
+        <div className="max-w-7xl mx-auto px-4 text-center text-sm text-muted-foreground">
           <a href="/legal" className="underline hover:text-blue-600">Terms of Service & Privacy Policy</a>
         </div>
       </footer>
@@ -168,8 +169,10 @@ function BackgroundRemoverApp() {
 
 export default function Page() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <BackgroundRemoverApp />
-    </QueryClientProvider>
+    <AuthGuard>
+      <QueryClientProvider client={queryClient}>
+        <BackgroundRemoverApp />
+      </QueryClientProvider>
+    </AuthGuard>
   )
 }
