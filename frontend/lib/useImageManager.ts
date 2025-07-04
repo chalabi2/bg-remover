@@ -206,12 +206,12 @@ export function useImageManager(): ImageManagerState & ImageManagerActions {
 
   // Selection actions
   const selectImage = useCallback((imageId: string) => {
-    setSelectedImages(prev => new Set([...prev, imageId]));
+    setSelectedImages(prev => new Set(Array.from(prev).concat(imageId)));
   }, []);
 
   const deselectImage = useCallback((imageId: string) => {
     setSelectedImages(prev => {
-      const newSet = new Set(prev);
+      const newSet = new Set(Array.from(prev));
       newSet.delete(imageId);
       return newSet;
     });
