@@ -8,7 +8,7 @@ const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "AI Background Remover",
-  description: "An interface for removing backgrounds from images using the briaai/RMBG-1.4 model",
+  description: "An interface for removing backgrounds from images using the briaai/RMBG-2.0 model",
 };
 
 export default function RootLayout({

@@ -11,10 +11,10 @@ export default function LegalPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
         <div className="bg-card rounded-lg shadow-sm border border-border">
           {/* Header */}
-          <div className="border-b border-border px-6 py-4">
+          <div className="border-b border-border px-4 sm:px-6 py-4">
             {/* Back button */}
             <div className="mb-4">
               <Button 
@@ -36,7 +36,7 @@ export default function LegalPage() {
             
             {/* Title section */}
             <div>
-              <h1 className="text-2xl font-bold text-foreground">Legal Information</h1>
+              <h1 className="text-xl sm:text-2xl font-bold text-foreground">Legal Information</h1>
               <p className="mt-1 text-sm text-muted-foreground">
                 Terms of Service and Privacy Policy
               </p>
@@ -44,10 +44,10 @@ export default function LegalPage() {
           </div>
 
           {/* Navigation */}
-          <div className="flex border-b border-border">
+          <div className="flex border-b border-border overflow-x-auto">
             <button
               onClick={() => setActiveSection('tos')}
-              className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+              className={`px-4 sm:px-6 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                 activeSection === 'tos'
                   ? 'border-primary text-primary'
                   : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -57,7 +57,7 @@ export default function LegalPage() {
             </button>
             <button
               onClick={() => setActiveSection('privacy')}
-              className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+              className={`px-4 sm:px-6 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                 activeSection === 'privacy'
                   ? 'border-primary text-primary'
                   : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -68,7 +68,7 @@ export default function LegalPage() {
           </div>
 
           {/* Content */}
-          <div className="px-6 py-8">
+          <div className="px-4 sm:px-6 py-6 sm:py-8">
             {activeSection === 'tos' ? <TermsOfService /> : <PrivacyPolicy />}
           </div>
         </div>

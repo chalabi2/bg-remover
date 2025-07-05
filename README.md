@@ -43,7 +43,7 @@ Flask app with a pipeline from Huggingface.
 cd backend
 python -m venv venv
 venv\Scripts\activate ## or on mac source venv/bin/activate
-pip install -qr https://huggingface.co/briaai/RMBG-1.4/resolve/main/requirements.txt
+pip install -qr https://huggingface.co/briaai/RMBG-2.0/resolve/main/requirements.txt
 pip install -r requirements.txt
 flask run
 ```

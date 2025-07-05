@@ -334,7 +334,7 @@ export function ImageUpload({ onUpload, isUploading }: ImageUploadProps) {
             <span
               className={`inline-block h-4 w-4 transform rounded-full transition-all duration-200 shadow-sm ${
                 compressionEnabled 
-                  ? 'translate-x-6 bg-white border border-primary/20' 
+                  ? 'translate-x-6 bg-primary-foreground border border-primary/10' 
                   : 'translate-x-1 bg-background border border-border'
               }`}
             />

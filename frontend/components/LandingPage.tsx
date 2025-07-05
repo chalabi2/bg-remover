@@ -134,7 +134,7 @@ function ProcessingShowcase() {
 
       {/* Status indicator */}
       <div className="text-center">
-        <div className={`inline-flex items-center space-x-2 px-3 py-1 rounded-full text-sm transition-all duration-300 ${
+        <div className={`inline-flex items-center space-x-2 px-3 py-1 rounded-full text-xs sm:text-sm transition-all duration-300 ${
           state === 'processing' 
             ? 'bg-primary/20 text-primary' 
             : state === 'processed'
@@ -150,13 +150,15 @@ function ProcessingShowcase() {
           {state === 'processing' && (
             <>
               <Loader2 className="w-3 h-3 animate-spin" />
-              <span>Processing with RMBG-2.0...</span>
+              <span className="hidden sm:inline">Processing with RMBG-2.0...</span>
+              <span className="sm:hidden">Processing...</span>
             </>
           )}
           {state === 'processed' && (
             <>
               <Sparkles className="w-3 h-3" />
-              <span>Complete! Background removed</span>
+              <span className="hidden sm:inline">Complete! Background removed</span>
+              <span className="sm:hidden">Complete!</span>
             </>
           )}
         </div>
@@ -193,26 +195,26 @@ export function LandingPage() {
     <div className="min-h-screen bg-background text-foreground flex flex-col">
       {/* Main Content - Centered */}
       <main className="flex-1 flex items-center justify-center">
-        <div className="container mx-auto px-6 py-12">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
+        <div className="container mx-auto px-4 sm:px-6 py-8 sm:py-12">
+          <div className="grid lg:grid-cols-2 gap-8 lg:gap-12 items-center">
             {/* Left Side - Content */}
-            <div className="space-y-8">
-              <div className="space-y-6">
+            <div className="space-y-6 sm:space-y-8">
+              <div className="space-y-4 sm:space-y-6">
                 {/* Logo and Title inline - Fixed alignment */}
-                <div className="flex items-center justify-center lg:justify-start mb-6 flex-wrap">
+                <div className="flex items-center justify-center lg:justify-start mb-4 sm:mb-6 flex-wrap gap-3 sm:gap-4">
                   <Image 
                     src="/rmbg.svg" 
                     alt="BG-Remover Logo" 
-                    width={60} 
-                    height={60} 
-                    className="drop-shadow-lg mr-4 flex-shrink-0"
+                    width={48} 
+                    height={48} 
+                    className="drop-shadow-lg flex-shrink-0 sm:w-[60px] sm:h-[60px]"
                   />
-                  <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-foreground leading-tight">
+                  <h1 className="text-2xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-foreground leading-tight text-center lg:text-left">
                     Remove Backgrounds
                   </h1>
                 </div>
                 
-                <p className="text-xl text-muted-foreground leading-relaxed">
+                <p className="text-base sm:text-lg lg:text-xl text-muted-foreground leading-relaxed text-center lg:text-left">
                   Transform your images with AI-powered background removal. 
                   Upload any photo and get professional results in seconds - 
                   perfect for product photography, portraits, and creative projects.
@@ -220,60 +222,61 @@ export function LandingPage() {
               </div>
 
               {/* Feature Highlights */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="flex items-center space-x-3 p-4 bg-card rounded-lg shadow-sm border border-border">
-                  <Zap className="h-5 w-5 text-primary" />
-                  <span className="text-foreground font-medium">Lightning Fast</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                <div className="flex items-center space-x-3 p-3 sm:p-4 bg-card rounded-lg shadow-sm border border-border">
+                  <Zap className="h-4 w-4 sm:h-5 sm:w-5 text-primary flex-shrink-0" />
+                  <span className="text-sm sm:text-base text-foreground font-medium">Lightning Fast</span>
                 </div>
-                <div className="flex items-center space-x-3 p-4 bg-card rounded-lg shadow-sm border border-border">
-                  <Shield className="h-5 w-5 text-green-600 dark:text-green-400" />
-                  <span className="text-foreground font-medium">Secure & Private</span>
+                <div className="flex items-center space-x-3 p-3 sm:p-4 bg-card rounded-lg shadow-sm border border-border">
+                  <Shield className="h-4 w-4 sm:h-5 sm:w-5 text-green-600 dark:text-green-400 flex-shrink-0" />
+                  <span className="text-sm sm:text-base text-foreground font-medium">Secure & Private</span>
                 </div>
-                <div className="flex items-center space-x-3 p-4 bg-card rounded-lg shadow-sm border border-border">
-                  <Upload className="h-5 w-5 text-purple-600 dark:text-purple-400" />
-                  <span className="text-foreground font-medium">Easy Upload</span>
+                <div className="flex items-center space-x-3 p-3 sm:p-4 bg-card rounded-lg shadow-sm border border-border">
+                  <Upload className="h-4 w-4 sm:h-5 sm:w-5 text-purple-600 dark:text-purple-400 flex-shrink-0" />
+                  <span className="text-sm sm:text-base text-foreground font-medium">Easy Upload</span>
                 </div>
-                <div className="flex items-center space-x-3 p-4 bg-card rounded-lg shadow-sm border border-border">
-                  <Sparkles className="h-5 w-5 text-orange-600 dark:text-orange-400" />
-                  <span className="text-foreground font-medium">AI Powered</span>
+                <div className="flex items-center space-x-3 p-3 sm:p-4 bg-card rounded-lg shadow-sm border border-border">
+                  <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 text-orange-600 dark:text-orange-400 flex-shrink-0" />
+                  <span className="text-sm sm:text-base text-foreground font-medium">AI Powered</span>
                 </div>
               </div>
 
               {/* CTA Section */}
-              <div className="space-y-4">
+              <div className="space-y-4 text-center lg:text-left">
                 <Button 
                   size="lg" 
-                  className="bg-primary hover:bg-primary/90 text-primary-foreground px-8 py-3 text-lg"
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground px-6 sm:px-8 py-2 sm:py-3 text-base sm:text-lg"
                   onClick={() => signIn('google')}
                 >
                   Get Started Free
-                  <ArrowRight className="ml-2 h-5 w-5" />
+                  <ArrowRight className="ml-2 h-4 w-4 sm:h-5 sm:w-5" />
                 </Button>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-xs sm:text-sm text-muted-foreground">
                   No credit card required • Process unlimited images
                 </p>
               </div>
             </div>
 
             {/* Right Side - Interactive Processing Demo */}
-            <div className="relative">
-              <div className="bg-card rounded-2xl shadow-2xl p-8 border border-border">
+            <div className="relative order-first lg:order-last">
+              <div className="bg-card rounded-2xl shadow-2xl p-4 sm:p-6 lg:p-8 border border-border">
                 <ProcessingShowcase />
               </div>
 
               {/* Floating elements for visual appeal */}
-              <div className="absolute -top-4 -right-4 w-20 h-20 bg-primary/10 rounded-full opacity-50"></div>
-              <div className="absolute -bottom-4 -left-4 w-16 h-16 bg-purple-400/10 dark:bg-purple-600/20 rounded-full opacity-50"></div>
+              <div className="absolute -top-4 -right-4 w-16 h-16 sm:w-20 sm:h-20 bg-primary/10 rounded-full opacity-50"></div>
+              <div className="absolute -bottom-4 -left-4 w-12 h-12 sm:w-16 sm:h-16 bg-purple-400/10 dark:bg-purple-600/20 rounded-full opacity-50"></div>
             </div>
           </div>
         </div>
       </main>
 
       {/* Footer */}
-      <footer className="container mx-auto px-6 py-8 border-t border-border">
-        <div className="text-center text-muted-foreground text-sm space-y-2">
+      <footer className="container mx-auto px-4 sm:px-6 py-6 sm:py-8 border-t border-border">
+        <div className="text-center text-muted-foreground text-xs sm:text-sm space-y-2">
           <p>Powered by RMBG-2.0 AI model from BRIA AI</p>
-          <p>This is a free, open-source tool for educational and personal use only.</p>
+          <p className="hidden sm:block">This is a free, open-source tool for educational and personal use only.</p>
+          <p className="sm:hidden">Free tool for educational and personal use only.</p>
           <p className="text-xs">Not licensed for commercial use. Please respect the model&apos;s terms of service.</p>
         </div>
       </footer>
