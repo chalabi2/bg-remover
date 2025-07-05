@@ -61,7 +61,14 @@ export function useImageManager(): ImageManagerState & ImageManagerActions {
       if (!response.ok) {
         throw new Error('Failed to fetch images');
       }
-      return response.json();
+      
+      // Try to parse JSON response, but handle errors gracefully
+      try {
+        return await response.json();
+      } catch (jsonError) {
+        console.error('Failed to parse images JSON:', jsonError);
+        return []; // Return empty array if JSON parsing fails
+      }
     },
     refetchInterval: 5000, // Poll every 5 seconds for updates
   });
@@ -81,11 +88,28 @@ export function useImageManager(): ImageManagerState & ImageManagerActions {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Upload failed');
+        let errorMessage = 'Upload failed';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch (jsonError) {
+          // If JSON parsing fails, use the status text
+          errorMessage = response.statusText || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
 
-      return response.json();
+      // Try to parse JSON response, but don't require it
+      try {
+        return await response.json();
+      } catch (jsonError) {
+        // If JSON parsing fails but response was successful, return success
+        return { 
+          id: 'unknown', 
+          title: title || 'Unknown', 
+          message: 'Upload successful' 
+        };
+      }
     },
     onSuccess: (data) => {
       toast.success(`Image "${data.title}" uploaded successfully`);
@@ -109,11 +133,24 @@ export function useImageManager(): ImageManagerState & ImageManagerActions {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Processing failed');
+        let errorMessage = 'Processing failed';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch (jsonError) {
+          // If JSON parsing fails, use the status text
+          errorMessage = response.statusText || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
 
-      return response.json();
+      // Try to parse JSON response, but don't require it
+      try {
+        return await response.json();
+      } catch (jsonError) {
+        // If JSON parsing fails but response was successful, return success
+        return { message: 'Background removed successfully' };
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['images'] });
@@ -136,11 +173,24 @@ export function useImageManager(): ImageManagerState & ImageManagerActions {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to update title');
+        let errorMessage = 'Failed to update title';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch (jsonError) {
+          // If JSON parsing fails, use the status text
+          errorMessage = response.statusText || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
 
-      return response.json();
+      // Try to parse JSON response, but don't require it
+      try {
+        return await response.json();
+      } catch (jsonError) {
+        // If JSON parsing fails but response was successful, return success
+        return { message: 'Title updated successfully' };
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['images'] });
@@ -159,11 +209,24 @@ export function useImageManager(): ImageManagerState & ImageManagerActions {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to delete image');
+        let errorMessage = 'Failed to delete image';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch (jsonError) {
+          // If JSON parsing fails, use the status text
+          errorMessage = response.statusText || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
 
-      return response.json();
+      // Try to parse JSON response, but don't require it
+      try {
+        return await response.json();
+      } catch (jsonError) {
+        // If JSON parsing fails but response was successful, return success
+        return { message: 'Image deleted successfully' };
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['images'] });

@@ -2,7 +2,7 @@ flask==2.3.2
 flask-cors==4.0.0
 pillow==10.1.0
 pillow-heif==0.18.0
-transformers==4.44.0
+transformers==4.46.0
 torch==2.4.1
 gunicorn==21.2.0
 torchvision==0.19.1

@@ -180,8 +180,9 @@ export function ImageGrid({
                 alt={image.title}
                 className="w-full h-full object-cover"
                 loading="lazy"
-                width={100}
-                height={100}
+                width={400}
+                height={400}
+                unoptimized
               />
 
               {/* Hover overlay */}

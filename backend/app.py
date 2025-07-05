@@ -292,7 +292,7 @@ def get_model():
                 logger.info("Loading background removal model...")
                 _model = pipeline(
                     "image-segmentation",
-                    model="briaai/RMBG-1.4",
+                    model="briaai/RMBG-2.0",
                     trust_remote_code=True,
                     device=device
                 )
