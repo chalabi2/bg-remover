@@ -5,6 +5,7 @@ pillow-heif==0.18.0
 transformers==4.46.0
 torch==2.4.1
 gunicorn==21.2.0
+gevent==23.9.1
 torchvision==0.19.1
 scikit-image==0.21.0
 huggingface-hub==0.26.2

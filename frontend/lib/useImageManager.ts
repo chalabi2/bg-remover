@@ -53,7 +53,7 @@ export function useImageManager(): ImageManagerState & ImageManagerActions {
 
   const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://backend-rmbg.jchalabi.xyz';
 
-  // Query for fetching images - call backend directly
+  // Query for fetching images - use Next.js API route
   const {
     data: images = [],
     isLoading,
@@ -61,17 +61,7 @@ export function useImageManager(): ImageManagerState & ImageManagerActions {
   } = useQuery<ServerImage[]>({
     queryKey: ['images'],
     queryFn: async () => {
-      if (!session?.user?.email) {
-        throw new Error('Authentication required');
-      }
-
-      const response = await fetch(`${BACKEND_URL}/images`, {
-        method: 'GET',
-        headers: {
-          'X-User-ID': session.user.email,
-        },
-      });
-
+      const response = await fetch('/api/images');
       if (!response.ok) {
         throw new Error('Failed to fetch images');
       }
@@ -85,7 +75,6 @@ export function useImageManager(): ImageManagerState & ImageManagerActions {
       }
     },
     refetchInterval: 5000, // Poll every 5 seconds for updates
-    enabled: !!session?.user?.email, // Only run query if user is authenticated
   });
 
   // Upload mutation - call backend directly

@@ -7,17 +7,17 @@ backlog = 2048
 
 # Worker processes
 workers = 1  # Use 1 worker for GPU workloads to avoid memory conflicts
-worker_class = "sync"
+worker_class = "gevent"  # Use gevent for async processing
 worker_connections = 1000
 max_requests = 1000
 max_requests_jitter = 50
-preload_app = False  # Disable preloading to avoid multiprocessing issues
+preload_app = True  # Enable preloading to load model at startup
 worker_tmp_dir = "/dev/shm"  # Use shared memory for worker temp files
 
 # Timeout settings
-timeout = 120  # Increased timeout for image processing
+timeout = 600  # Increased timeout for image processing (10 minutes)
 keepalive = 2
-graceful_timeout = 30
+graceful_timeout = 120  # Increased graceful timeout
 
 # Logging
 accesslog = "-"
