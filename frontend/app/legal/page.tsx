@@ -1,21 +1,29 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, ArrowLeft } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { useRouter } from 'next/navigation';
 
 export default function LegalPage() {
   const [activeSection, setActiveSection] = useState<'tos' | 'privacy'>('tos');
+  const router = useRouter();
 
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="bg-card rounded-lg shadow-sm border border-border">
           {/* Header */}
-          <div className="border-b border-border px-6 py-4">
+          <div className="border-b border-border px-6 py-4 w-full flex flex-row justify-between">
+            <div className="flex flex-row justify-between">
             <h1 className="text-2xl font-bold text-foreground">Legal Information</h1>
             <p className="mt-1 text-sm text-muted-foreground">
               Terms of Service and Privacy Policy
             </p>
+            </div>
+            <Button variant="outline" onClick={() => router.back()}>
+              Back
+            </Button>
           </div>
 
           {/* Navigation */}
