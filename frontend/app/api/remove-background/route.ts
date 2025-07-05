@@ -1,9 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 
 const BACKEND_URL = process.env.BACKEND_URL || 'https://backend-rmbg.jchalabi.xyz';
 
 export async function POST(request: NextRequest) {
   try {
+    // Get user session
+    const session = await getServerSession(authOptions);
+    
+    if (!session?.user?.email) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
     
     if (!body.file_id) {
@@ -19,6 +31,7 @@ export async function POST(request: NextRequest) {
         'Content-Type': 'application/json',
         'Origin': request.headers.get('origin') || '',
         'Referer': request.headers.get('referer') || '',
+        'X-User-ID': session.user.email, // Pass user ID to backend
       },
       body: JSON.stringify({ file_id: body.file_id }),
     });

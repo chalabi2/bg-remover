@@ -14,6 +14,7 @@ import uuid
 import json
 from datetime import datetime, timedelta
 import shutil
+import hashlib
 
 import sys
 import zipfile
@@ -33,26 +34,63 @@ app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB limit
 # Storage configuration
 UPLOAD_FOLDER = 'uploads'
 PROCESSED_FOLDER = 'processed'
-METADATA_FILE = 'image_metadata.json'
+METADATA_FOLDER = 'metadata'
 CLEANUP_INTERVAL = 24 * 60 * 60  # 24 hours in seconds
 MAX_STORAGE_AGE = 7 * 24 * 60 * 60  # 7 days in seconds
 
 # Create directories if they don't exist
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(PROCESSED_FOLDER, exist_ok=True)
+os.makedirs(METADATA_FOLDER, exist_ok=True)
 
-# Load metadata
-def load_metadata():
-    if os.path.exists(METADATA_FILE):
+# User authentication helper
+def get_user_id():
+    """Get user ID from request headers"""
+    user_id = request.headers.get('X-User-ID')
+    if not user_id:
+        return None
+    # Hash the user ID to create a safe filename
+    return hashlib.sha256(user_id.encode()).hexdigest()[:16]
+
+def require_user_auth(f):
+    """Decorator to require user authentication"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        user_id = get_user_id()
+        if not user_id:
+            return jsonify({'error': 'Authentication required'}), 401
+        return f(*args, **kwargs)
+    return decorated_function
+
+def get_user_paths(user_id):
+    """Get user-specific paths for storage"""
+    user_upload_folder = os.path.join(UPLOAD_FOLDER, user_id)
+    user_processed_folder = os.path.join(PROCESSED_FOLDER, user_id)
+    user_metadata_file = os.path.join(METADATA_FOLDER, f'{user_id}.json')
+    
+    # Create user directories if they don't exist
+    os.makedirs(user_upload_folder, exist_ok=True)
+    os.makedirs(user_processed_folder, exist_ok=True)
+    
+    return user_upload_folder, user_processed_folder, user_metadata_file
+
+# Load user-specific metadata
+def load_user_metadata(user_id):
+    """Load metadata for a specific user"""
+    _, _, metadata_file = get_user_paths(user_id)
+    if os.path.exists(metadata_file):
         try:
-            with open(METADATA_FILE, 'r') as f:
+            with open(metadata_file, 'r') as f:
                 return json.load(f)
         except:
             return {}
     return {}
 
-def save_metadata(metadata):
-    with open(METADATA_FILE, 'w') as f:
+# Save user-specific metadata
+def save_user_metadata(user_id, metadata):
+    """Save metadata for a specific user"""
+    _, _, metadata_file = get_user_paths(user_id)
+    with open(metadata_file, 'w') as f:
         json.dump(metadata, f, indent=2)
 
 # Content filtering using NSFW detection
@@ -95,43 +133,60 @@ def is_safe_content(image):
     except Exception as e:
         return False, f"Error analyzing content: {str(e)}"
 
-# Cleanup old files
+# Cleanup old files for all users
 def cleanup_old_files():
-    """Remove files older than MAX_STORAGE_AGE"""
-    try:
-        metadata = load_metadata()
-        current_time = datetime.now()
-        files_to_remove = []
-        
-        for file_id, file_data in metadata.items():
-            upload_time = datetime.fromisoformat(file_data['upload_time'])
-            if (current_time - upload_time).total_seconds() > MAX_STORAGE_AGE:
-                files_to_remove.append(file_id)
-        
-        for file_id in files_to_remove:
-            # Remove original file
-            original_path = os.path.join(UPLOAD_FOLDER, f"{file_id}.jpg")
-            if os.path.exists(original_path):
-                os.remove(original_path)
-            
-            # Remove processed file
-            processed_path = os.path.join(PROCESSED_FOLDER, f"{file_id}.png")
-            if os.path.exists(processed_path):
-                os.remove(processed_path)
-            
-            # Remove from metadata
-            del metadata[file_id]
-        
-        if files_to_remove:
-            save_metadata(metadata)
-            logger.info(f"Cleaned up {len(files_to_remove)} old files")
-            
-    except Exception as e:
-        logger.error(f"Error during cleanup: {str(e)}")
+    """Remove old files and metadata for all users"""
+    logger.info("Starting cleanup of old files")
+    current_time = datetime.now()
+    
+    # Clean up user metadata files
+    for metadata_file in os.listdir(METADATA_FOLDER):
+        if metadata_file.endswith('.json'):
+            user_id = metadata_file[:-5]  # Remove .json extension
+            try:
+                user_upload_folder, user_processed_folder, user_metadata_file = get_user_paths(user_id)
+                
+                # Load user metadata
+                metadata = load_user_metadata(user_id)
+                
+                # Check each image in user's metadata
+                files_to_remove = []
+                for file_id, file_data in metadata.items():
+                    upload_time = datetime.fromisoformat(file_data['upload_time'])
+                    if (current_time - upload_time).total_seconds() > MAX_STORAGE_AGE:
+                        files_to_remove.append(file_id)
+                
+                # Remove old files
+                for file_id in files_to_remove:
+                    try:
+                        # Remove original file
+                        original_path = os.path.join(user_upload_folder, f"{file_id}.jpg")
+                        if os.path.exists(original_path):
+                            os.remove(original_path)
+                        
+                        # Remove processed file
+                        processed_path = os.path.join(user_processed_folder, f"{file_id}.png")
+                        if os.path.exists(processed_path):
+                            os.remove(processed_path)
+                        
+                        # Remove from metadata
+                        del metadata[file_id]
+                        
+                        logger.info(f"Cleaned up old file: {file_id} for user {user_id}")
+                    except Exception as e:
+                        logger.error(f"Error cleaning up file {file_id}: {str(e)}")
+                
+                # Save updated metadata
+                if files_to_remove:
+                    save_user_metadata(user_id, metadata)
+                    
+            except Exception as e:
+                logger.error(f"Error during cleanup for user {user_id}: {str(e)}")
+    
+    logger.info("Cleanup completed")
 
-# Schedule cleanup
 def schedule_cleanup():
-    """Run cleanup every CLEANUP_INTERVAL seconds"""
+    """Schedule periodic cleanup"""
     while True:
         time.sleep(CLEANUP_INTERVAL)
         cleanup_old_files()
@@ -175,22 +230,22 @@ CORS(app, resources={
     r"/remove-background": {
         "origins": [f"https://{domain}" for domain in ALLOWED_DOMAINS] + [f"http://{domain}" for domain in ALLOWED_DOMAINS],
         "methods": ["POST", "OPTIONS"],
-        "allow_headers": ["Content-Type"]
+        "allow_headers": ["Content-Type", "X-User-ID"]
     },
     r"/images": {
         "origins": [f"https://{domain}" for domain in ALLOWED_DOMAINS] + [f"http://{domain}" for domain in ALLOWED_DOMAINS],
         "methods": ["GET", "OPTIONS"],
-        "allow_headers": ["Content-Type"]
+        "allow_headers": ["Content-Type", "X-User-ID"]
     },
     r"/image/*": {
         "origins": [f"https://{domain}" for domain in ALLOWED_DOMAINS] + [f"http://{domain}" for domain in ALLOWED_DOMAINS],
         "methods": ["GET", "PUT", "DELETE", "OPTIONS"],
-        "allow_headers": ["Content-Type"]
+        "allow_headers": ["Content-Type", "X-User-ID"]
     },
     r"/upload": {
         "origins": [f"https://{domain}" for domain in ALLOWED_DOMAINS] + [f"http://{domain}" for domain in ALLOWED_DOMAINS],
         "methods": ["POST", "OPTIONS"],
-        "allow_headers": ["Content-Type"]
+        "allow_headers": ["Content-Type", "X-User-ID"]
     },
     r"/health": {
         "origins": "*",  # Allow health checks from anywhere
@@ -223,46 +278,47 @@ else:
 _model = None
 _model_lock = threading.Lock()
 
-# Simple processing lock for sequential processing
-processing_lock = threading.Lock()
+# Keep track of processing status globally
 is_processing = False
+processing_lock = threading.Lock()
 
+@lru_cache(maxsize=1)
 def get_model():
-    """Get or initialize the model with thread safety"""
+    """Load and cache the background removal model"""
     global _model
-    with _model_lock:
-        if _model is None:
-            logger.info("Initializing model...")
-            # Use float32 for consistency to avoid dtype mismatches
-            _model = pipeline("image-segmentation", 
-                            model="briaai/RMBG-1.4", 
-                            trust_remote_code=True, 
-                            device=device,
-                            torch_dtype=torch.float32)
-            logger.info(f"Model loaded on device: {_model.device}")
+    if _model is None:
+        with _model_lock:
+            if _model is None:
+                logger.info("Loading background removal model...")
+                _model = pipeline(
+                    "image-segmentation",
+                    model="briaai/RMBG-1.4",
+                    trust_remote_code=True,
+                    device=device
+                )
+                logger.info("Background removal model loaded successfully")
     return _model
 
-def smart_resize(img, max_size=1920, max_area=2073600):  # 1920x1080 = 2,073,600 pixels
-    """
-    Resize image while preserving aspect ratio and pixel density.
-    Returns both the resized image and the original dimensions for restoration.
-    """
-    original_size = img.size
-    width, height = img.size
-    aspect_ratio = width / height
+# Optimized image resizing
+def smart_resize(image, max_size=1024):
+    """Resize image intelligently to optimize processing speed while maintaining quality"""
+    width, height = image.size
     
-    if width * height <= max_area and max(width, height) <= max_size:
-        return img, original_size
+    # If image is already small, don't resize
+    if max(width, height) <= max_size:
+        return image, image.size
     
-    if aspect_ratio > 1:  # Landscape
-        new_width = min(max_size, int(math.sqrt(max_area * aspect_ratio)))
-        new_height = int(new_width / aspect_ratio)
-    else:  # Portrait or square
-        new_height = min(max_size, int(math.sqrt(max_area / aspect_ratio)))
-        new_width = int(new_height * aspect_ratio)
+    # Calculate new dimensions
+    if width > height:
+        new_width = max_size
+        new_height = int(height * max_size / width)
+    else:
+        new_height = max_size
+        new_width = int(width * max_size / height)
     
-    resized_img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
-    return resized_img, original_size
+    # Resize using high-quality resampling
+    resized = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+    return resized, (width, height)
 
 def process_image_safe(file):
     """Process a single image with thread safety and support for various formats including HEIC/HEIF"""
@@ -302,24 +358,26 @@ def process_image_safe(file):
         logger.error(f"Error processing image {file.filename}: {str(e)}")
         raise
 
+# Health check endpoint
 @app.route('/health', methods=['GET'])
 def health_check():
-    """Health check endpoint for production monitoring - accessible from anywhere"""
-    with processing_lock:
-        currently_processing = is_processing
-    
-    return {
-        'status': 'healthy', 
+    """Health check endpoint for monitoring"""
+    return jsonify({
+        'status': 'healthy',
         'gpu_available': torch.cuda.is_available(),
-        'queue_size': 0,  # No queue system, just sequential processing
-        'currently_processing': currently_processing
-    }, 200
+        'queue_size': 0,
+        'currently_processing': is_processing
+    })
 
 @app.route('/upload', methods=['POST'])
 @require_domain
+@require_user_auth
 def upload_image():
     """Upload and store image with metadata"""
     try:
+        user_id = get_user_id()
+        user_upload_folder, user_processed_folder, user_metadata_file = get_user_paths(user_id)
+        
         if 'image' not in request.files:
             return {'error': 'No image file provided'}, 400
         
@@ -350,13 +408,13 @@ def upload_image():
         
         # Generate unique ID and save file
         file_id = str(uuid.uuid4())
-        original_path = os.path.join(UPLOAD_FOLDER, f"{file_id}.jpg")
+        original_path = os.path.join(user_upload_folder, f"{file_id}.jpg")
         
         # Save original image
         img.save(original_path, 'JPEG', quality=95)
         
         # Save metadata
-        metadata = load_metadata()
+        metadata = load_user_metadata(user_id)
         metadata[file_id] = {
             'id': file_id,
             'original_filename': file.filename,
@@ -365,187 +423,209 @@ def upload_image():
             'status': 'uploaded',
             'processed': False
         }
-        save_metadata(metadata)
+        save_user_metadata(user_id, metadata)
         
-        logger.info(f"Uploaded image: {file_id} - {title}")
+        logger.info(f"Uploaded image: {file_id} - {title} for user {user_id}")
+        
         return {
             'id': file_id,
             'title': title,
-            'message': 'Image uploaded successfully'
-        }
+            'status': 'uploaded',
+            'processed': False,
+            'upload_time': metadata[file_id]['upload_time']
+        }, 201
         
     except Exception as e:
-        logger.error(f"Upload error: {str(e)}")
-        return {'error': 'Upload failed'}, 500
+        logger.error(f"Error uploading image: {str(e)}")
+        return {'error': f'Upload failed: {str(e)}'}, 500
 
 @app.route('/images', methods=['GET'])
 @require_domain
+@require_user_auth
 def list_images():
-    """List all uploaded images"""
+    """List all images for the current user"""
     try:
-        metadata = load_metadata()
-        images = []
+        user_id = get_user_id()
+        metadata = load_user_metadata(user_id)
         
+        # Convert metadata to list format
+        images = []
         for file_id, file_data in metadata.items():
-            original_path = os.path.join(UPLOAD_FOLDER, f"{file_id}.jpg")
-            processed_path = os.path.join(PROCESSED_FOLDER, f"{file_id}.png")
-            
-            if os.path.exists(original_path):
-                images.append({
-                    'id': file_id,
-                    'title': file_data.get('title', file_data.get('original_filename', 'Untitled')),
-                    'original_filename': file_data.get('original_filename', ''),
-                    'upload_time': file_data['upload_time'],
-                    'status': file_data.get('status', 'uploaded'),
-                    'processed': file_data.get('processed', False),
-                    'has_original': os.path.exists(original_path),
-                    'has_processed': os.path.exists(processed_path)
-                })
+            images.append({
+                'id': file_id,
+                'title': file_data['title'],
+                'original_filename': file_data['original_filename'],
+                'upload_time': file_data['upload_time'],
+                'status': file_data['status'],
+                'processed': file_data['processed']
+            })
         
         # Sort by upload time (newest first)
         images.sort(key=lambda x: x['upload_time'], reverse=True)
         
+        logger.info(f"Listed {len(images)} images for user {user_id}")
         return jsonify(images)
         
     except Exception as e:
-        logger.error(f"List images error: {str(e)}")
-        return {'error': 'Failed to list images'}, 500
+        logger.error(f"Error listing images: {str(e)}")
+        return {'error': f'Failed to list images: {str(e)}'}, 500
 
 @app.route('/image/<file_id>', methods=['GET'])
 @require_domain
-def get_image(file_id):
-    """Get image details"""
+@require_user_auth
+def get_image_info(file_id):
+    """Get information about a specific image"""
     try:
-        metadata = load_metadata()
+        user_id = get_user_id()
+        metadata = load_user_metadata(user_id)
+        
         if file_id not in metadata:
             return {'error': 'Image not found'}, 404
         
         file_data = metadata[file_id]
-        original_path = os.path.join(UPLOAD_FOLDER, f"{file_id}.jpg")
-        processed_path = os.path.join(PROCESSED_FOLDER, f"{file_id}.png")
-        
-        return {
+        return jsonify({
             'id': file_id,
-            'title': file_data.get('title', file_data.get('original_filename', 'Untitled')),
-            'original_filename': file_data.get('original_filename', ''),
+            'title': file_data['title'],
+            'original_filename': file_data['original_filename'],
             'upload_time': file_data['upload_time'],
-            'status': file_data.get('status', 'uploaded'),
-            'processed': file_data.get('processed', False),
-            'has_original': os.path.exists(original_path),
-            'has_processed': os.path.exists(processed_path)
-        }
+            'status': file_data['status'],
+            'processed': file_data['processed']
+        })
         
     except Exception as e:
-        logger.error(f"Get image error: {str(e)}")
-        return {'error': 'Failed to get image'}, 500
+        logger.error(f"Error getting image info: {str(e)}")
+        return {'error': f'Failed to get image info: {str(e)}'}, 500
 
 @app.route('/image/<file_id>/title', methods=['PUT'])
 @require_domain
-def update_title(file_id):
-    """Update image title"""
+@require_user_auth
+def update_image_title(file_id):
+    """Update the title of an image"""
     try:
+        user_id = get_user_id()
+        metadata = load_user_metadata(user_id)
+        
+        if file_id not in metadata:
+            return {'error': 'Image not found'}, 404
+        
         data = request.get_json()
         if not data or 'title' not in data:
             return {'error': 'Title is required'}, 400
         
-        title = data['title'].strip()
-        if not title:
-            return {'error': 'Title cannot be empty'}, 400
+        # Update title
+        metadata[file_id]['title'] = data['title']
+        save_user_metadata(user_id, metadata)
         
-        metadata = load_metadata()
-        if file_id not in metadata:
-            return {'error': 'Image not found'}, 404
+        logger.info(f"Updated title for image {file_id} to '{data['title']}' for user {user_id}")
         
-        metadata[file_id]['title'] = title
-        save_metadata(metadata)
-        
-        return {'message': 'Title updated successfully', 'title': title}
+        return jsonify({
+            'id': file_id,
+            'title': data['title'],
+            'message': 'Title updated successfully'
+        })
         
     except Exception as e:
-        logger.error(f"Update title error: {str(e)}")
-        return {'error': 'Failed to update title'}, 500
+        logger.error(f"Error updating image title: {str(e)}")
+        return {'error': f'Failed to update title: {str(e)}'}, 500
 
 @app.route('/image/<file_id>', methods=['DELETE'])
 @require_domain
+@require_user_auth
 def delete_image(file_id):
-    """Delete image and its files"""
+    """Delete an image and its processed version"""
     try:
-        metadata = load_metadata()
+        user_id = get_user_id()
+        user_upload_folder, user_processed_folder, user_metadata_file = get_user_paths(user_id)
+        metadata = load_user_metadata(user_id)
+        
         if file_id not in metadata:
             return {'error': 'Image not found'}, 404
         
-        # Get file data for logging
-        file_data = metadata[file_id]
-        title = file_data.get('title', file_data.get('original_filename', 'Untitled'))
+        # Remove files
+        original_path = os.path.join(user_upload_folder, f"{file_id}.jpg")
+        processed_path = os.path.join(user_processed_folder, f"{file_id}.png")
         
-        # Delete files from filesystem
-        original_path = os.path.join(UPLOAD_FOLDER, f"{file_id}.jpg")
-        processed_path = os.path.join(PROCESSED_FOLDER, f"{file_id}.png")
-        
-        files_deleted = []
         if os.path.exists(original_path):
             os.remove(original_path)
-            files_deleted.append('original')
+            logger.info(f"Removed original file: {original_path}")
         
         if os.path.exists(processed_path):
             os.remove(processed_path)
-            files_deleted.append('processed')
+            logger.info(f"Removed processed file: {processed_path}")
         
         # Remove from metadata
         del metadata[file_id]
-        save_metadata(metadata)
+        save_user_metadata(user_id, metadata)
         
-        logger.info(f"Deleted image: {file_id} - {title} (files: {', '.join(files_deleted)})")
-        return {'message': 'Image deleted successfully', 'files_deleted': files_deleted}
+        logger.info(f"Deleted image {file_id} for user {user_id}")
+        
+        return jsonify({
+            'id': file_id,
+            'message': 'Image deleted successfully'
+        })
         
     except Exception as e:
-        logger.error(f"Delete image error: {str(e)}")
-        return {'error': 'Failed to delete image'}, 500
+        logger.error(f"Error deleting image: {str(e)}")
+        return {'error': f'Failed to delete image: {str(e)}'}, 500
 
 @app.route('/image/<file_id>/original', methods=['GET'])
 @require_domain
+@require_user_auth
 def get_original_image(file_id):
-    """Get original image file"""
+    """Get the original uploaded image"""
     try:
-        metadata = load_metadata()
+        user_id = get_user_id()
+        user_upload_folder, user_processed_folder, user_metadata_file = get_user_paths(user_id)
+        metadata = load_user_metadata(user_id)
+        
         if file_id not in metadata:
             return {'error': 'Image not found'}, 404
         
-        original_path = os.path.join(UPLOAD_FOLDER, f"{file_id}.jpg")
+        original_path = os.path.join(user_upload_folder, f"{file_id}.jpg")
+        
         if not os.path.exists(original_path):
             return {'error': 'Original image not found'}, 404
         
         return send_file(original_path, mimetype='image/jpeg')
         
     except Exception as e:
-        logger.error(f"Get original image error: {str(e)}")
-        return {'error': 'Failed to get original image'}, 500
+        logger.error(f"Error getting original image: {str(e)}")
+        return {'error': f'Failed to get original image: {str(e)}'}, 500
 
 @app.route('/image/<file_id>/processed', methods=['GET'])
 @require_domain
+@require_user_auth
 def get_processed_image(file_id):
-    """Get processed image file"""
+    """Get the processed image with background removed"""
     try:
-        metadata = load_metadata()
+        user_id = get_user_id()
+        user_upload_folder, user_processed_folder, user_metadata_file = get_user_paths(user_id)
+        metadata = load_user_metadata(user_id)
+        
         if file_id not in metadata:
             return {'error': 'Image not found'}, 404
         
-        processed_path = os.path.join(PROCESSED_FOLDER, f"{file_id}.png")
+        processed_path = os.path.join(user_processed_folder, f"{file_id}.png")
+        
         if not os.path.exists(processed_path):
             return {'error': 'Processed image not found'}, 404
         
         return send_file(processed_path, mimetype='image/png')
         
     except Exception as e:
-        logger.error(f"Get processed image error: {str(e)}")
-        return {'error': 'Failed to get processed image'}, 500
+        logger.error(f"Error getting processed image: {str(e)}")
+        return {'error': f'Failed to get processed image: {str(e)}'}, 500
 
 @app.route('/remove-background', methods=['POST'])
 @require_domain
+@require_user_auth
 def remove_background():
     global is_processing
     
     try:
+        user_id = get_user_id()
+        user_upload_folder, user_processed_folder, user_metadata_file = get_user_paths(user_id)
+        
         # Get file ID from request
         data = request.get_json()
         if not data or 'file_id' not in data:
@@ -554,12 +634,12 @@ def remove_background():
         file_id = data['file_id']
         
         # Check if image exists
-        metadata = load_metadata()
+        metadata = load_user_metadata(user_id)
         if file_id not in metadata:
             return {'error': 'Image not found'}, 404
         
         file_data = metadata[file_id]
-        original_path = os.path.join(UPLOAD_FOLDER, f"{file_id}.jpg")
+        original_path = os.path.join(user_upload_folder, f"{file_id}.jpg")
         
         if not os.path.exists(original_path):
             return {'error': 'Original image not found'}, 404
@@ -567,58 +647,56 @@ def remove_background():
         # Process image
         with processing_lock:
             is_processing = True
+            
+            # Update status to processing
+            metadata[file_id]['status'] = 'processing'
+            save_user_metadata(user_id, metadata)
+            
             try:
-                # Load image
-                img = Image.open(original_path).convert("RGB")
-                original_size = img.size
-                
-                # Resize for processing while preserving original dimensions
-                img_resized, original_dimensions = smart_resize(img)
-                
-                # Get model and process image with thread safety
-                model = get_model()
-                with _model_lock:
-                    result = model(img_resized)
-                
-                # Restore original dimensions if the image was resized
-                if result.size != original_dimensions:
-                    result = result.resize(original_dimensions, Image.Resampling.LANCZOS)
+                # Load and process image
+                with open(original_path, 'rb') as f:
+                    # Create a file-like object for processing
+                    class FileWrapper:
+                        def __init__(self, file_path):
+                            self.filename = os.path.basename(file_path)
+                            self.stream = open(file_path, 'rb')
+                    
+                    file_wrapper = FileWrapper(original_path)
+                    result_io = process_image_safe(file_wrapper)
+                    file_wrapper.stream.close()
                 
                 # Save processed image
-                processed_path = os.path.join(PROCESSED_FOLDER, f"{file_id}.png")
-                result.save(processed_path, 'PNG', optimize=True, quality=95)
+                processed_path = os.path.join(user_processed_folder, f"{file_id}.png")
+                with open(processed_path, 'wb') as f:
+                    f.write(result_io.getvalue())
                 
                 # Update metadata
-                file_data['processed'] = True
-                file_data['status'] = 'completed'
-                file_data['processed_time'] = datetime.now().isoformat()
-                metadata[file_id] = file_data
-                save_metadata(metadata)
+                metadata[file_id]['status'] = 'completed'
+                metadata[file_id]['processed'] = True
+                save_user_metadata(user_id, metadata)
                 
-                logger.info(f"Processed image: {file_id} - {file_data.get('title', 'Untitled')}")
-                return {'message': 'Background removed successfully'}
+                logger.info(f"Background removed for image {file_id} for user {user_id}")
                 
+                return {
+                    'id': file_id,
+                    'status': 'completed',
+                    'processed': True,
+                    'message': 'Background removed successfully'
+                }
+                
+            except Exception as e:
+                # Update status to error
+                metadata[file_id]['status'] = 'error'
+                save_user_metadata(user_id, metadata)
+                logger.error(f"Error processing image {file_id}: {str(e)}")
+                raise
+            
             finally:
                 is_processing = False
-    
-    except Exception as e:
-        logger.error(f"Error processing image: {str(e)}")
-        error_message = str(e)
         
-        # Provide user-friendly error messages
-        if "413" in error_message or "too large" in error_message.lower():
-            return {'error': 'File size too large for processing. Please try a smaller image.'}, 413
-        elif "memory" in error_message.lower():
-            return {'error': 'Image too large to process. Please try a smaller image.'}, 413
-        elif "format" in error_message.lower():
-            return {'error': 'Unsupported image format. Please upload a JPEG, PNG, GIF, BMP, WebP, HEIC, HEIF, or TIFF image.'}, 400
-        else:
-            return {'error': 'An error occurred while processing your image. Please try again.'}, 500
+    except Exception as e:
+        logger.error(f"Error removing background: {str(e)}")
+        return {'error': f'Background removal failed: {str(e)}'}, 500
 
 if __name__ == '__main__':
-    # Development mode
-    debug_mode = os.getenv('FLASK_ENV') == 'development'
-    port = int(os.getenv('PORT', 5000))
-    host = os.getenv('HOST', '0.0.0.0')
-    
-    app.run(debug=debug_mode, host=host, port=port)
+    app.run(debug=False, host='0.0.0.0', port=5000)
