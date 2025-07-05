@@ -170,7 +170,7 @@ export function ImageViewer({ image, onClose, onDownload, onUpdateTitle }: Image
                     <div className="text-center">
                       <div className="text-3xl sm:text-4xl mb-2">📷</div>
                       <p className="text-sm sm:text-base">Not processed yet</p>
-                      <p className="text-xs sm:text-sm">Click "Process" to remove background</p>
+                      <p className="text-xs sm:text-sm">Click &quot;Process&quot; to remove background</p>
                     </div>
                   </div>
                 )}
