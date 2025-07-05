@@ -14,16 +14,33 @@ export default function LegalPage() {
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="bg-card rounded-lg shadow-sm border border-border">
           {/* Header */}
-          <div className="border-b border-border px-6 py-4 w-full flex flex-row justify-between">
-            <div className="flex flex-row justify-between">
-            <h1 className="text-2xl font-bold text-foreground">Legal Information</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Terms of Service and Privacy Policy
-            </p>
+          <div className="border-b border-border px-6 py-4">
+            {/* Back button */}
+            <div className="mb-4">
+              <Button 
+                variant="ghost" 
+                onClick={() => {
+                  // Try to go back, fallback to home page
+                  if (window.history.length > 1) {
+                    router.back();
+                  } else {
+                    router.push('/');
+                  }
+                }}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to App
+              </Button>
             </div>
-            <Button variant="outline" onClick={() => router.back()}>
-              Back
-            </Button>
+            
+            {/* Title section */}
+            <div>
+              <h1 className="text-2xl font-bold text-foreground">Legal Information</h1>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Terms of Service and Privacy Policy
+              </p>
+            </div>
           </div>
 
           {/* Navigation */}
