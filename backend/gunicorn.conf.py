@@ -11,7 +11,7 @@ worker_class = "gevent"  # Use gevent for async processing
 worker_connections = 1000
 max_requests = 1000
 max_requests_jitter = 50
-preload_app = True  # Enable preloading to load model at startup
+preload_app = False  # Disable preloading to avoid CUDA fork issues
 worker_tmp_dir = "/dev/shm"  # Use shared memory for worker temp files
 
 # Timeout settings

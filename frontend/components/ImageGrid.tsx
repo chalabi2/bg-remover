@@ -182,7 +182,7 @@ export function ImageGrid({
                 loading="lazy"
                 width={400}
                 height={400}
-                unoptimized
+                unoptimized={true}
               />
 
               {/* Hover overlay */}

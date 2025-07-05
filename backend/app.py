@@ -21,6 +21,14 @@ from dotenv import load_dotenv
 
 import sys
 import zipfile
+import multiprocessing
+
+# Set multiprocessing start method to avoid CUDA fork issues
+try:
+    multiprocessing.set_start_method('spawn', force=True)
+except RuntimeError:
+    # Start method can only be set once
+    pass
 
 # Load environment variables from .env file
 load_dotenv()
@@ -300,56 +308,34 @@ if HF_TOKEN:
 else:
     logger.warning("HF_TOKEN environment variable not set. Some models may not be accessible.")
 
-# Global model instance - loaded lazily
-_model = None
-_model_lock = threading.Lock()
+# Simple global model variables - loaded lazily
+model = None
+transform_image = None
 
-# Keep track of processing status globally
-is_processing = False
-processing_lock = threading.Lock()
-
-@lru_cache(maxsize=1)
-def get_model_and_transform():
-    """Load and cache the background removal model and transform"""
-    global _model
-    if _model is None:
-        with _model_lock:
-            if _model is None:
-                logger.info("Loading RMBG-2.0 background removal model...")
-                
-                # Load RMBG-2.0 exactly as shown in the documentation
-                _model = AutoModelForImageSegmentation.from_pretrained('briaai/RMBG-2.0', trust_remote_code=True)
-                torch.set_float32_matmul_precision(['high', 'highest'][0])
-                _model.to(device)
-                _model.eval()
-                
-                logger.info("RMBG-2.0 model loaded successfully")
+def load_model():
+    """Load the RMBG-2.0 model following exact recommendations"""
+    global model, transform_image
     
-    # Data settings exactly as shown in documentation
-    image_size = (1024, 1024)
-    transform_image = transforms.Compose([
-        transforms.Resize(image_size),
-        transforms.ToTensor(),
-        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-    ])
+    if model is None or transform_image is None:
+        logger.info("Loading RMBG-2.0 background removal model...")
+        
+        # Load RMBG-2.0 exactly as recommended
+        model = AutoModelForImageSegmentation.from_pretrained('briaai/RMBG-2.0', trust_remote_code=True)
+        torch.set_float32_matmul_precision(['high', 'highest'][0])
+        model.to(device)
+        model.eval()
+        
+        # Data settings exactly as recommended
+        image_size = (1024, 1024)
+        transform_image = transforms.Compose([
+            transforms.Resize(image_size),
+            transforms.ToTensor(),
+            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        ])
+        
+        logger.info("RMBG-2.0 model loaded successfully")
     
-    return _model, transform_image
-
-def warmup_model():
-    """Warm up the model at startup to avoid first-request delays"""
-    try:
-        logger.info("Warming up model...")
-        # Just load the model without processing an image
-        get_model_and_transform()
-        logger.info("Model warmed up successfully")
-    except Exception as e:
-        logger.error(f"Model warmup failed: {str(e)}")
-
-# Warmup model at startup - this will run when the module is imported
-try:
-    warmup_model()
-except Exception as e:
-    logger.error(f"Model warmup failed during startup: {str(e)}")
+    return model, transform_image
 
 # Optimized image resizing
 def smart_resize(image, max_size=1024):
@@ -372,50 +358,36 @@ def smart_resize(image, max_size=1024):
     resized = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
     return resized, (width, height)
 
-def process_image_safe(file):
-    """Process a single image with thread safety and support for various formats including HEIC/HEIF"""
+def process_image_safe(image_path):
+    """Process image following exact RMBG-2.0 recommendations"""
     try:
-        # Handle HEIC/HEIF files if supported
-        file_extension = file.filename.lower().split('.')[-1] if file.filename else ''
+        # Load model if not already loaded
+        model, transform_image = load_model()
         
-        if file_extension in ['heic', 'heif'] and not HEIF_SUPPORTED:
-            logger.error(f"HEIC/HEIF file {file.filename} uploaded but pillow-heif not available")
-            raise Exception("HEIC/HEIF format not supported on this server")
+        # Load image exactly as recommended
+        image = Image.open(image_path).convert("RGB")
+        input_images = transform_image(image).unsqueeze(0).to(device)
         
-        # Load and prepare image
-        img = Image.open(file.stream).convert("RGB")
-        original_size = img.size
+        # Prediction exactly as recommended
+        with torch.no_grad():
+            preds = model(input_images)[-1].sigmoid().cpu()
         
-        # Get model and transform with thread safety
-        with _model_lock:
-            model, transform_image = get_model_and_transform()
-            
-            # Preprocess image
-            input_tensor = transform_image(img).unsqueeze(0).to(device)
-            
-            # Prediction
-            with torch.no_grad():
-                preds = model(input_tensor)[-1].sigmoid().cpu()
-            
-            # Postprocess
-            pred = preds[0].squeeze()
-            pred_pil = transforms.ToPILImage()(pred)
-            mask = pred_pil.resize(original_size)
-            
-            # Apply mask to original image
-            result = img.copy()
-            result.putalpha(mask)
+        # Post-process exactly as recommended
+        pred = preds[0].squeeze()
+        pred_pil = transforms.ToPILImage()(pred)
+        mask = pred_pil.resize(image.size)
+        image.putalpha(mask)
         
-        # Save result with high quality
+        # Save result to BytesIO
         img_io = io.BytesIO()
-        result.save(img_io, 'PNG', optimize=True, quality=95)
+        image.save(img_io, 'PNG', optimize=True)
         img_io.seek(0)
         
-        logger.info(f"Processed image: {file.filename}, original size: {original_size}, format: {file_extension}")
+        logger.info(f"Successfully processed image: {image_path}")
         return img_io
         
     except Exception as e:
-        logger.error(f"Error processing image {file.filename}: {str(e)}")
+        logger.error(f"Error processing image {image_path}: {str(e)}")
         raise
 
 # Health check endpoint
@@ -426,7 +398,7 @@ def health_check():
         'status': 'healthy',
         'gpu_available': torch.cuda.is_available(),
         'queue_size': 0,
-        'currently_processing': is_processing
+        'currently_processing': False
     })
 
 @app.route('/upload', methods=['POST'])
@@ -690,8 +662,6 @@ def get_processed_image(file_id):
 @require_domain
 @require_user_auth
 def remove_background():
-    global is_processing
-    
     try:
         user_id = get_user_id()
         user_upload_folder, user_processed_folder, user_metadata_file = get_user_paths(user_id)
@@ -714,55 +684,39 @@ def remove_background():
         if not os.path.exists(original_path):
             return {'error': 'Original image not found'}, 404
         
-        # Process image
-        with processing_lock:
-            is_processing = True
+        # Update status to processing
+        metadata[file_id]['status'] = 'processing'
+        save_user_metadata(user_id, metadata)
+        
+        try:
+            # Process image directly with file path
+            result_io = process_image_safe(original_path)
             
-            # Update status to processing
-            metadata[file_id]['status'] = 'processing'
+            # Save processed image
+            processed_path = os.path.join(user_processed_folder, f"{file_id}.png")
+            with open(processed_path, 'wb') as f:
+                f.write(result_io.getvalue())
+            
+            # Update metadata
+            metadata[file_id]['status'] = 'completed'
+            metadata[file_id]['processed'] = True
             save_user_metadata(user_id, metadata)
             
-            try:
-                # Load and process image
-                with open(original_path, 'rb') as f:
-                    # Create a file-like object for processing
-                    class FileWrapper:
-                        def __init__(self, file_path):
-                            self.filename = os.path.basename(file_path)
-                            self.stream = open(file_path, 'rb')
-                    
-                    file_wrapper = FileWrapper(original_path)
-                    result_io = process_image_safe(file_wrapper)
-                    file_wrapper.stream.close()
-                
-                # Save processed image
-                processed_path = os.path.join(user_processed_folder, f"{file_id}.png")
-                with open(processed_path, 'wb') as f:
-                    f.write(result_io.getvalue())
-                
-                # Update metadata
-                metadata[file_id]['status'] = 'completed'
-                metadata[file_id]['processed'] = True
-                save_user_metadata(user_id, metadata)
-                
-                logger.info(f"Background removed for image {file_id} for user {user_id}")
-                
-                return {
-                    'id': file_id,
-                    'status': 'completed',
-                    'processed': True,
-                    'message': 'Background removed successfully'
-                }
-                
-            except Exception as e:
-                # Update status to error
-                metadata[file_id]['status'] = 'error'
-                save_user_metadata(user_id, metadata)
-                logger.error(f"Error processing image {file_id}: {str(e)}")
-                raise
+            logger.info(f"Background removed for image {file_id} for user {user_id}")
             
-            finally:
-                is_processing = False
+            return {
+                'id': file_id,
+                'status': 'completed',
+                'processed': True,
+                'message': 'Background removed successfully'
+            }
+            
+        except Exception as e:
+            # Update status to error
+            metadata[file_id]['status'] = 'error'
+            save_user_metadata(user_id, metadata)
+            logger.error(f"Error processing image {file_id}: {str(e)}")
+            raise
         
     except Exception as e:
         logger.error(f"Error removing background: {str(e)}")

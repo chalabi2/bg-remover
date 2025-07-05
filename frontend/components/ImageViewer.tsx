@@ -140,6 +140,7 @@ export function ImageViewer({ image, onClose, onDownload, onUpdateTitle }: Image
                   className="w-full h-auto object-contain"
                   width={100}
                   height={100}
+                  unoptimized={true}
                 />
               </div>
               <div className="text-center text-sm text-gray-500">
@@ -161,6 +162,7 @@ export function ImageViewer({ image, onClose, onDownload, onUpdateTitle }: Image
                     className="w-full h-auto object-contain"
                     width={100}
                     height={100}
+                    unoptimized={true}
                   />
                 ) : (
                   <div className="flex items-center justify-center h-64 text-gray-400">

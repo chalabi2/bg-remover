@@ -61,11 +61,15 @@ export async function GET(
 
     // For image responses, return the blob directly
     const imageBlob = await response.blob();
+    const contentType = response.headers.get('content-type') || 'image/png';
+    
     return new NextResponse(imageBlob, {
       status: 200,
       headers: {
-        'Content-Type': response.headers.get('content-type') || 'image/png',
-        'Cache-Control': 'public, max-age=3600', // Cache for 1 hour
+        'Content-Type': contentType,
+        'Content-Length': imageBlob.size.toString(),
+        'Cache-Control': 'public, max-age=3600',
+        'Accept-Ranges': 'bytes',
       },
     });
 
