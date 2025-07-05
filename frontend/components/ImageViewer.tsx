@@ -51,15 +51,15 @@ export function ImageViewer({ image, onClose, onDownload, onUpdateTitle }: Image
 
   return (
     <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-      <div className={`bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-full overflow-hidden ${
+      <div className={`bg-background rounded-lg shadow-xl max-w-6xl w-full max-h-full overflow-hidden ${
         isFullscreen ? 'fixed inset-4' : ''
       }`}>
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200">
+        <div className="flex items-center justify-between p-4 border-b border-border">
           <div className="flex items-center space-x-3">
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600"
+              className="text-muted-foreground hover:text-foreground"
             >
               <X className="h-5 w-5" />
             </button>
@@ -72,30 +72,30 @@ export function ImageViewer({ image, onClose, onDownload, onUpdateTitle }: Image
                     onChange={(e) => setEditTitle(e.target.value)}
                     onKeyPress={handleKeyPress}
                     onBlur={handleSaveTitle}
-                    className="text-lg font-semibold text-gray-900 border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="text-lg font-semibold text-foreground border border-border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-ring bg-background"
                     autoFocus
                   />
                   <button
                     onClick={handleSaveTitle}
-                    className="text-green-600 hover:text-green-700"
+                    className="text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300"
                   >
                     Save
                   </button>
                   <button
                     onClick={handleCancelEdit}
-                    className="text-red-600 hover:text-red-700"
+                    className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
                   >
                     Cancel
                   </button>
                 </div>
               ) : (
                 <div className="flex items-center space-x-2">
-                  <h2 className="text-lg font-semibold text-gray-900">
+                  <h2 className="text-lg font-semibold text-foreground">
                     {image.title}
                   </h2>
                   <button
                     onClick={handleEditTitle}
-                    className="text-gray-400 hover:text-gray-600"
+                    className="text-muted-foreground hover:text-foreground"
                   >
                     <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -118,7 +118,7 @@ export function ImageViewer({ image, onClose, onDownload, onUpdateTitle }: Image
             )}
             <button
               onClick={() => setIsFullscreen(!isFullscreen)}
-              className="text-gray-400 hover:text-gray-600"
+              className="text-muted-foreground hover:text-foreground"
             >
               {isFullscreen ? <Minimize2 className="h-5 w-5" /> : <Maximize2 className="h-5 w-5" />}
             </button>
@@ -130,10 +130,10 @@ export function ImageViewer({ image, onClose, onDownload, onUpdateTitle }: Image
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Original image */}
             <div className="space-y-2">
-              <h3 className="text-lg font-medium text-gray-900 text-center">
+              <h3 className="text-lg font-medium text-foreground text-center">
                 Original Image
               </h3>
-              <div className="relative bg-gray-100 rounded-lg overflow-hidden">
+              <div className="relative bg-muted rounded-lg overflow-hidden">
                 <Image
                   src={`/api/images/${image.id}/original`}
                   alt={`Original: ${image.title}`}
@@ -143,7 +143,7 @@ export function ImageViewer({ image, onClose, onDownload, onUpdateTitle }: Image
                   unoptimized={true}
                 />
               </div>
-              <div className="text-center text-sm text-gray-500">
+              <div className="text-center text-sm text-muted-foreground">
                 <p>Uploaded: {new Date(image.upload_time).toLocaleString()}</p>
                 <p>Status: {image.status}</p>
               </div>
@@ -151,10 +151,10 @@ export function ImageViewer({ image, onClose, onDownload, onUpdateTitle }: Image
 
             {/* Processed image */}
             <div className="space-y-2">
-              <h3 className="text-lg font-medium text-gray-900 text-center">
+              <h3 className="text-lg font-medium text-foreground text-center">
                 Processed Image
               </h3>
-              <div className="relative bg-gray-100 rounded-lg overflow-hidden">
+              <div className="relative bg-muted rounded-lg overflow-hidden">
                 {image.processed ? (
                   <Image
                     src={`/api/images/${image.id}/processed`}
@@ -165,7 +165,7 @@ export function ImageViewer({ image, onClose, onDownload, onUpdateTitle }: Image
                     unoptimized={true}
                   />
                 ) : (
-                  <div className="flex items-center justify-center h-64 text-gray-400">
+                  <div className="flex items-center justify-center h-64 text-muted-foreground">
                     <div className="text-center">
                       <div className="text-4xl mb-2">📷</div>
                       <p>Not processed yet</p>
@@ -174,7 +174,7 @@ export function ImageViewer({ image, onClose, onDownload, onUpdateTitle }: Image
                   </div>
                 )}
               </div>
-              <div className="text-center text-sm text-gray-500">
+              <div className="text-center text-sm text-muted-foreground">
                 {image.processed ? (
                   <>
                     <p>Background removed successfully</p>
@@ -189,8 +189,8 @@ export function ImageViewer({ image, onClose, onDownload, onUpdateTitle }: Image
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-gray-200 bg-gray-50">
-          <div className="flex items-center justify-between text-sm text-gray-500">
+        <div className="p-4 border-t border-border bg-muted">
+          <div className="flex items-center justify-between text-sm text-muted-foreground">
             <div>
               <p>Image ID: {image.id}</p>
               <p>Original filename: {image.original_filename}</p>

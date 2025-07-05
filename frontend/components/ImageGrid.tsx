@@ -176,14 +176,24 @@ export function ImageGrid({
               onClick={() => onViewImage(image)}
             >
               <Image
-                src={`/api/images/${image.id}/original`}
-                alt={image.title}
+                src={image.processed ? `/api/images/${image.id}/processed` : `/api/images/${image.id}/original`}
+                alt={image.processed ? `${image.title} (processed)` : image.title}
                 className="w-full h-full object-cover"
                 loading="lazy"
                 width={400}
                 height={400}
                 unoptimized={true}
               />
+
+              {/* Processed indicator */}
+              {image.processed && (
+                <div className="absolute bottom-2 left-2 z-10">
+                  <div className="bg-green-500 text-white text-xs px-2 py-1 rounded-full flex items-center space-x-1">
+                    <CheckCircle className="h-3 w-3" />
+                    <span>Processed</span>
+                  </div>
+                </div>
+              )}
 
               {/* Hover overlay */}
               <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
