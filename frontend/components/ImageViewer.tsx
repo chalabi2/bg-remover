@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ServerImage } from '@/lib/useImageManager';
 import { X, Download, ArrowLeft, ArrowRight, Maximize2, Minimize2 } from 'lucide-react';
+import Image from 'next/image';
 
 interface ImageViewerProps {
   image: ServerImage | null;
@@ -133,10 +134,12 @@ export function ImageViewer({ image, onClose, onDownload, onUpdateTitle }: Image
                 Original Image
               </h3>
               <div className="relative bg-gray-100 rounded-lg overflow-hidden">
-                <img
+                <Image
                   src={`/api/images/${image.id}/original`}
                   alt={`Original: ${image.title}`}
                   className="w-full h-auto object-contain"
+                  width={100}
+                  height={100}
                 />
               </div>
               <div className="text-center text-sm text-gray-500">
@@ -152,10 +155,12 @@ export function ImageViewer({ image, onClose, onDownload, onUpdateTitle }: Image
               </h3>
               <div className="relative bg-gray-100 rounded-lg overflow-hidden">
                 {image.processed ? (
-                  <img
+                  <Image
                     src={`/api/images/${image.id}/processed`}
                     alt={`Processed: ${image.title}`}
                     className="w-full h-auto object-contain"
+                    width={100}
+                    height={100}
                   />
                 ) : (
                   <div className="flex items-center justify-center h-64 text-gray-400">

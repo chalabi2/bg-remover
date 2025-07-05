@@ -12,6 +12,7 @@ import {
   CheckCircle,
   Trash2
 } from 'lucide-react';
+import Image from 'next/image';
 
 interface ImageGridProps {
   images: ServerImage[];
@@ -174,13 +175,15 @@ export function ImageGrid({
               className="relative aspect-square bg-muted cursor-pointer group"
               onClick={() => onViewImage(image)}
             >
-              <img
+              <Image
                 src={`/api/images/${image.id}/original`}
                 alt={image.title}
                 className="w-full h-full object-cover"
                 loading="lazy"
+                width={100}
+                height={100}
               />
-              
+
               {/* Hover overlay */}
               <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
                 <div className="opacity-0 group-hover:opacity-100 transition-opacity">
