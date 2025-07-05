@@ -1,8 +1,106 @@
 import { AuthButtons } from "./AuthButtons"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
-import { ArrowRight, Sparkles, Zap, Shield, Upload } from "lucide-react"
+import { ArrowRight, Sparkles, Zap, Shield, Upload, Loader2 } from "lucide-react"
 import { signIn } from "next-auth/react"
+import { useState, useEffect } from "react"
+
+// Processing animation states
+type ProcessingState = 'original' | 'processing' | 'processed'
+
+function ProcessingShowcase() {
+  const [state, setState] = useState<ProcessingState>('original')
+  
+  useEffect(() => {
+    const cycle = () => {
+      setState('original')
+      setTimeout(() => setState('processing'), 2000)
+      setTimeout(() => setState('processed'), 4000)
+      setTimeout(() => setState('original'), 6000)
+    }
+    
+    // Start the cycle
+    cycle()
+    const interval = setInterval(cycle, 8000)
+    
+    return () => clearInterval(interval)
+  }, [])
+  
+  return (
+    <div className="space-y-6">
+      <div className="text-center">
+        <h3 className="text-lg font-semibold text-foreground mb-2">See the Magic</h3>
+        <p className="text-muted-foreground">Watch as AI removes backgrounds in real-time</p>
+      </div>
+      
+      <div className="grid grid-cols-2 gap-4">
+        {/* Before/Original Image */}
+        <div className="space-y-2">
+          <div className="text-sm font-medium text-muted-foreground text-center">Before</div>
+          <div className="aspect-square bg-muted rounded-lg overflow-hidden flex items-center justify-center relative">
+            {state === 'original' || state === 'processing' ? (
+              <div className="w-full h-full bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/20 dark:to-purple-900/20 flex items-center justify-center">
+                <div className="w-24 h-32 bg-orange-200 dark:bg-orange-800 rounded-lg flex items-center justify-center">
+                  <div className="w-12 h-12 bg-orange-400 dark:bg-orange-600 rounded-full"></div>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center p-4">
+                <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                <p className="text-sm text-muted-foreground">Your Image</p>
+              </div>
+            )}
+          </div>
+        </div>
+        
+        {/* After/Processed Image */}
+        <div className="space-y-2">
+          <div className="text-sm font-medium text-muted-foreground text-center">After</div>
+          <div className="aspect-square bg-transparent rounded-lg overflow-hidden flex items-center justify-center relative border-2 border-dashed border-primary/30">
+            {state === 'processing' ? (
+              <div className="flex items-center justify-center">
+                <Loader2 className="h-8 w-8 text-primary animate-spin" />
+              </div>
+            ) : state === 'processed' ? (
+              <div className="w-24 h-32 bg-transparent flex items-center justify-center">
+                <div className="w-12 h-12 bg-orange-400 dark:bg-orange-600 rounded-full shadow-lg"></div>
+              </div>
+            ) : (
+              <div className="text-center p-4">
+                <Sparkles className="h-8 w-8 text-primary mx-auto mb-2" />
+                <p className="text-sm text-primary">Background Removed</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Status indicator */}
+      <div className="text-center">
+        <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-sm">
+          {state === 'original' && (
+            <>
+              <div className="w-2 h-2 bg-primary rounded-full"></div>
+              <span>Ready to process</span>
+            </>
+          )}
+          {state === 'processing' && (
+            <>
+              <Loader2 className="w-3 h-3 animate-spin" />
+              <span>Processing with RMBG-2.0...</span>
+            </>
+          )}
+          {state === 'processed' && (
+            <>
+              <Sparkles className="w-3 h-3" />
+              <span>Complete! Background removed</span>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export function LandingPage() {
   return (
@@ -14,16 +112,16 @@ export function LandingPage() {
             {/* Left Side - Content */}
             <div className="space-y-8">
               <div className="space-y-6">
-                {/* Logo and Title inline */}
-                <div className="flex items-center justify-center lg:justify-start mb-6">
+                {/* Logo and Title inline - Fixed alignment */}
+                <div className="flex items-center justify-center lg:justify-start mb-6 flex-wrap">
                   <Image 
                     src="/rmbg.svg" 
                     alt="BG-Remover Logo" 
-                    width={80} 
-                    height={80} 
-                    className="drop-shadow-lg mr-4"
+                    width={60} 
+                    height={60} 
+                    className="drop-shadow-lg mr-4 flex-shrink-0"
                   />
-                  <h1 className="text-5xl lg:text-6xl font-bold text-foreground leading-tight">
+                  <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-foreground leading-tight">
                     Remove Backgrounds
                   </h1>
                 </div>
@@ -71,45 +169,10 @@ export function LandingPage() {
               </div>
             </div>
 
-            {/* Right Side - Visual Demo */}
+            {/* Right Side - Animated Processing Demo */}
             <div className="relative">
               <div className="bg-card rounded-2xl shadow-2xl p-8 border border-border">
-                {/* Before/After Demo */}
-                <div className="space-y-6">
-                  <div className="text-center">
-                    <h3 className="text-lg font-semibold text-foreground mb-2">See the Magic</h3>
-                    <p className="text-muted-foreground">Upload your image and watch the background disappear</p>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    {/* Before Image Placeholder */}
-                    <div className="space-y-2">
-                      <div className="text-sm font-medium text-muted-foreground text-center">Before</div>
-                      <div className="aspect-square bg-muted rounded-lg flex items-center justify-center">
-                        <div className="text-center p-4">
-                          <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                          <p className="text-sm text-muted-foreground">Your Image</p>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    {/* After Image Placeholder */}
-                    <div className="space-y-2">
-                      <div className="text-sm font-medium text-muted-foreground text-center">After</div>
-                      <div className="aspect-square bg-accent rounded-lg flex items-center justify-center border-2 border-dashed border-primary/30">
-                        <div className="text-center p-4">
-                          <Sparkles className="h-8 w-8 text-primary mx-auto mb-2" />
-                          <p className="text-sm text-primary">Background Removed</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Arrow indicating transformation */}
-                  <div className="flex justify-center">
-                    <ArrowRight className="h-6 w-6 text-primary" />
-                  </div>
-                </div>
+                <ProcessingShowcase />
               </div>
 
               {/* Floating elements for visual appeal */}
@@ -122,8 +185,10 @@ export function LandingPage() {
 
       {/* Footer */}
       <footer className="container mx-auto px-6 py-8 border-t border-border">
-        <div className="text-center text-muted-foreground text-sm">
-          <p>© 2024 BG-Remover. Professional background removal powered by AI.</p>
+        <div className="text-center text-muted-foreground text-sm space-y-2">
+          <p>Powered by RMBG-2.0 AI model from BRIA AI</p>
+          <p>This is a free, open-source tool for educational and personal use only.</p>
+          <p className="text-xs">Not licensed for commercial use. Please respect the model's terms of service.</p>
         </div>
       </footer>
     </div>

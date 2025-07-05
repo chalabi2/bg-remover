@@ -191,6 +191,32 @@ function TermsOfService() {
     },
     {
       id: '8',
+      title: 'Commercial Use Restrictions',
+      content: (
+        <div className="space-y-3">
+          <p className="font-semibold text-orange-600 dark:text-orange-400">
+            This service is NOT licensed for commercial use.
+          </p>
+          <p>
+            This background removal tool is provided as a free, educational resource for personal and non-commercial use only.
+          </p>
+          <ul className="list-disc list-inside space-y-2 ml-4">
+            <li>You may NOT use this service for any commercial purposes</li>
+            <li>You may NOT use processed images for business, marketing, or profit-generating activities</li>
+            <li>You may NOT integrate this service into commercial applications or workflows</li>
+            <li>You may NOT resell or redistribute processed images for commercial gain</li>
+          </ul>
+          <p>
+            This service utilizes the RMBG-2.0 AI model from BRIA AI. Commercial use requires proper licensing from the model provider.
+          </p>
+          <p className="text-sm text-muted-foreground">
+            <strong>For commercial use:</strong> Please contact BRIA AI directly for commercial licensing of the RMBG-2.0 model.
+          </p>
+        </div>
+      )
+    },
+    {
+      id: '9',
       title: 'Changes to Terms',
       content: (
         <div className="space-y-3">
