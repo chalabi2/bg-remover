@@ -96,13 +96,15 @@ export function ImageUpload({ onUpload, isUploading }: ImageUploadProps) {
     }
   }, [compressionEnabled]);
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+  const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
     onDrop,
     accept: {
       'image/*': ['.jpeg', '.jpg', '.png', '.gif', '.bmp', '.webp', '.heic', '.heif', '.tiff', '.tif']
     },
     maxFiles: 1,
-    disabled: isUploading || isProcessing
+    disabled: isUploading || isProcessing,
+    noClick: false, // Ensure click is enabled
+    noKeyboard: false // Ensure keyboard access is enabled
   });
 
   const handleUpload = async () => {
@@ -149,6 +151,18 @@ export function ImageUpload({ onUpload, isUploading }: ImageUploadProps) {
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && uploadedFile && !isUploading && !isProcessing) {
       handleUpload();
+    }
+  };
+
+  const handleClick = () => {
+    if (!isUploading && !isProcessing) {
+      // Manually trigger file input click as fallback
+      if (fileInputRef.current) {
+        fileInputRef.current.click();
+      } else {
+        // Use react-dropzone's open function
+        open();
+      }
     }
   };
 
@@ -338,7 +352,7 @@ export function ImageUpload({ onUpload, isUploading }: ImageUploadProps) {
             : 'border-border hover:border-primary hover:bg-accent/50'
         } ${isUploading || isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
       >
-        <input {...getInputProps()} ref={fileInputRef} />
+        <input {...getInputProps()} ref={fileInputRef} style={{ display: 'none' }} />
         <Upload className={`mx-auto h-12 w-12 text-muted-foreground mb-4 transition-transform duration-200 ${
           isDragActive ? 'scale-110 text-primary' : ''
         }`} />
@@ -357,6 +371,21 @@ export function ImageUpload({ onUpload, isUploading }: ImageUploadProps) {
               ⚡ Large images will be optimized automatically
             </p>
           )}
+          
+          {/* Manual browse button as fallback */}
+          <div className="pt-2">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleClick();
+              }}
+              disabled={isUploading || isProcessing}
+              className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
+            >
+              Browse Files
+            </button>
+          </div>
         </div>
       </div>
     </div>

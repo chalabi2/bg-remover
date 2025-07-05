@@ -148,6 +148,7 @@ function BackgroundRemoverApp() {
       <footer className="w-full border-t border-border bg-background py-4 mt-12">
         <div className="max-w-7xl mx-auto px-4 text-center text-sm text-muted-foreground">
           <a href="/legal" className="underline hover:text-primary">Terms of Service & Privacy Policy</a>
+          <p>We store your images for 7 days.</p>
         </div>
       </footer>
     </div>

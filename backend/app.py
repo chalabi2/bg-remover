@@ -232,7 +232,14 @@ def cleanup_orphaned_processing_states():
     except Exception as e:
         logger.error(f"Error cleaning up orphaned processing states: {str(e)}")
 
-# Call cleanup on startup
+# Production logging configuration - SET UP FIRST
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+# Call cleanup on startup (after logger is set up)
 cleanup_orphaned_processing_states()
 
 # Start cleanup thread
@@ -310,13 +317,6 @@ CORS(app, resources={
         "allow_headers": ["Content-Type", "X-User-ID", "Origin", "Referer", "Cache-Control"]
     }
 })
-
-# Production logging configuration
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
 
 # Log HEIF support status
 if not HEIF_SUPPORTED:
