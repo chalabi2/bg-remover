@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { useSession } from 'next-auth/react';
 
 export interface ServerImage {
   id: string;
@@ -45,11 +46,14 @@ export interface ImageManagerActions {
 }
 
 export function useImageManager(): ImageManagerState & ImageManagerActions {
+  const { data: session } = useSession();
   const queryClient = useQueryClient();
   const [selectedImages, setSelectedImages] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
 
-  // Query for fetching images
+  const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://backend-rmbg.jchalabi.xyz';
+
+  // Query for fetching images - call backend directly
   const {
     data: images = [],
     isLoading,
@@ -57,7 +61,17 @@ export function useImageManager(): ImageManagerState & ImageManagerActions {
   } = useQuery<ServerImage[]>({
     queryKey: ['images'],
     queryFn: async () => {
-      const response = await fetch('/api/images');
+      if (!session?.user?.email) {
+        throw new Error('Authentication required');
+      }
+
+      const response = await fetch(`${BACKEND_URL}/images`, {
+        method: 'GET',
+        headers: {
+          'X-User-ID': session.user.email,
+        },
+      });
+
       if (!response.ok) {
         throw new Error('Failed to fetch images');
       }
@@ -71,19 +85,27 @@ export function useImageManager(): ImageManagerState & ImageManagerActions {
       }
     },
     refetchInterval: 5000, // Poll every 5 seconds for updates
+    enabled: !!session?.user?.email, // Only run query if user is authenticated
   });
 
-  // Upload mutation
+  // Upload mutation - call backend directly
   const uploadMutation = useMutation<UploadResponse, Error, { file: File; title?: string }>({
     mutationFn: async ({ file, title }) => {
+      if (!session?.user?.email) {
+        throw new Error('Authentication required');
+      }
+
       const formData = new FormData();
       formData.append('image', file);
       if (title) {
         formData.append('title', title);
       }
 
-      const response = await fetch('/api/upload', {
+      const response = await fetch(`${BACKEND_URL}/upload`, {
         method: 'POST',
+        headers: {
+          'X-User-ID': session.user.email,
+        },
         body: formData,
       });
 
@@ -121,32 +143,45 @@ export function useImageManager(): ImageManagerState & ImageManagerActions {
     },
   });
 
-  // Process mutation
+  // Process mutation - call backend directly
   const processMutation = useMutation<void, Error, string>({
     mutationFn: async (imageId: string) => {
-      const response = await fetch('/api/remove-background', {
+      if (!session?.user?.email) {
+        throw new Error('Authentication required');
+      }
+
+      console.log('🔄 Calling backend directly:', `${BACKEND_URL}/remove-background`);
+      
+      const response = await fetch(`${BACKEND_URL}/remove-background`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'X-User-ID': session.user.email, // Pass user ID to backend
         },
         body: JSON.stringify({ file_id: imageId }),
       });
+
+      console.log('📤 Backend response status:', response.status);
 
       if (!response.ok) {
         let errorMessage = 'Processing failed';
         try {
           const errorData = await response.json();
           errorMessage = errorData.error || errorMessage;
+          console.log('❌ Backend error:', errorData);
         } catch (jsonError) {
           // If JSON parsing fails, use the status text
           errorMessage = response.statusText || errorMessage;
+          console.log('❌ Backend error (non-JSON):', errorMessage);
         }
         throw new Error(errorMessage);
       }
 
       // Try to parse JSON response, but don't require it
       try {
-        return await response.json();
+        const result = await response.json();
+        console.log('✅ Backend success:', result);
+        return result;
       } catch (jsonError) {
         // If JSON parsing fails but response was successful, return success
         return { message: 'Background removed successfully' };
@@ -156,18 +191,24 @@ export function useImageManager(): ImageManagerState & ImageManagerActions {
       queryClient.invalidateQueries({ queryKey: ['images'] });
     },
     onError: (error) => {
+      console.error('💥 Process mutation error:', error);
       toast.error(error.message);
       setError(error.message);
     },
   });
 
-  // Update title mutation
+  // Update title mutation - call backend directly
   const updateTitleMutation = useMutation<void, Error, { imageId: string; title: string }>({
     mutationFn: async ({ imageId, title }) => {
-      const response = await fetch(`/api/images/${imageId}/title`, {
+      if (!session?.user?.email) {
+        throw new Error('Authentication required');
+      }
+
+      const response = await fetch(`${BACKEND_URL}/image/${imageId}/title`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
+          'X-User-ID': session.user.email,
         },
         body: JSON.stringify({ title }),
       });
@@ -201,11 +242,18 @@ export function useImageManager(): ImageManagerState & ImageManagerActions {
     },
   });
 
-  // Delete mutation
+  // Delete mutation - call backend directly
   const deleteMutation = useMutation<void, Error, string>({
     mutationFn: async (imageId: string) => {
-      const response = await fetch(`/api/images/${imageId}`, {
+      if (!session?.user?.email) {
+        throw new Error('Authentication required');
+      }
+
+      const response = await fetch(`${BACKEND_URL}/image/${imageId}`, {
         method: 'DELETE',
+        headers: {
+          'X-User-ID': session.user.email,
+        },
       });
 
       if (!response.ok) {
@@ -362,13 +410,24 @@ export function useImageManager(): ImageManagerState & ImageManagerActions {
     setSelectedImages(new Set());
   }, []);
 
-  // Download actions
+  // Download actions - call backend directly
   const downloadImage = useCallback(async (imageId: string) => {
     const image = images.find(img => img.id === imageId);
     if (!image) return;
 
+    if (!session?.user?.email) {
+      toast.error('Authentication required');
+      return;
+    }
+
     try {
-      const response = await fetch(`/api/images/${imageId}/processed`);
+      const response = await fetch(`${BACKEND_URL}/image/${imageId}/processed`, {
+        method: 'GET',
+        headers: {
+          'X-User-ID': session.user.email,
+        },
+      });
+
       if (!response.ok) {
         throw new Error('Failed to download image');
       }
@@ -388,7 +447,7 @@ export function useImageManager(): ImageManagerState & ImageManagerActions {
       toast.error('Failed to download image');
       console.error('Download error:', error);
     }
-  }, [images]);
+  }, [images, session?.user?.email, BACKEND_URL]);
 
   const downloadSelectedImages = useCallback(async () => {
     if (selectedImages.size === 0) {
