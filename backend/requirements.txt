@@ -7,3 +7,6 @@ torch==2.4.1
 gunicorn==21.2.0
 torchvision==0.19.1
 scikit-image==0.21.0
+huggingface-hub==0.26.2
+python-dotenv==1.0.0
+kornia==0.7.3

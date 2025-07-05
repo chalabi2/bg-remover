@@ -34,6 +34,7 @@ limit_request_fields = 100
 limit_request_field_size = 8190
 
 # Environment variables
+# Note: HF_TOKEN and other sensitive variables should be set in .env file
 raw_env = [
     "FLASK_ENV=production",
     "CUDA_VISIBLE_DEVICES=0",  # Ensure CUDA device is properly set

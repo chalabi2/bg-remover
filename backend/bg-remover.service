@@ -11,6 +11,7 @@ Environment=PATH=/home/ubuntu/Documents/Code/bg-remover/backend/venv/bin
 Environment=FLASK_ENV=production
 Environment=PORT=5000
 Environment=HOST=0.0.0.0
+# Note: HF_TOKEN and other sensitive variables are loaded from .env file by the application
 ExecStart=/home/ubuntu/Documents/Code/bg-remover/backend/venv/bin/gunicorn --config /home/ubuntu/Documents/Code/bg-remover/backend/gunicorn.conf.py app:app
 ExecReload=/bin/kill -s HUP $MAINPID
 Restart=always

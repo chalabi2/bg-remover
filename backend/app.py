@@ -3,7 +3,8 @@ from flask_cors import CORS
 from PIL import Image
 import io
 import torch
-from transformers import pipeline
+from transformers import AutoModelForImageSegmentation
+from torchvision import transforms
 import logging
 from functools import lru_cache, wraps
 import math
@@ -15,9 +16,14 @@ import json
 from datetime import datetime, timedelta
 import shutil
 import hashlib
+from huggingface_hub import login
+from dotenv import load_dotenv
 
 import sys
 import zipfile
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Import for HEIC/HEIF support
 try:
@@ -274,6 +280,17 @@ else:
     device = torch.device("cpu")
     logger.info("CUDA is not available. Using CPU.")
 
+# HuggingFace authentication
+HF_TOKEN = os.environ.get('HF_TOKEN')
+if HF_TOKEN:
+    try:
+        login(token=HF_TOKEN)
+        logger.info("Successfully authenticated with HuggingFace")
+    except Exception as e:
+        logger.error(f"Failed to authenticate with HuggingFace: {str(e)}")
+else:
+    logger.warning("HF_TOKEN environment variable not set. Some models may not be accessible.")
+
 # Global model instance - loaded lazily
 _model = None
 _model_lock = threading.Lock()
@@ -283,21 +300,31 @@ is_processing = False
 processing_lock = threading.Lock()
 
 @lru_cache(maxsize=1)
-def get_model():
-    """Load and cache the background removal model"""
+def get_model_and_transform():
+    """Load and cache the background removal model and transform"""
     global _model
     if _model is None:
         with _model_lock:
             if _model is None:
-                logger.info("Loading background removal model...")
-                _model = pipeline(
-                    "image-segmentation",
-                    model="briaai/RMBG-2.0",
-                    trust_remote_code=True,
-                    device=device
-                )
-                logger.info("Background removal model loaded successfully")
-    return _model
+                logger.info("Loading RMBG-2.0 background removal model...")
+                
+                # Load RMBG-2.0 exactly as shown in the documentation
+                _model = AutoModelForImageSegmentation.from_pretrained('briaai/RMBG-2.0', trust_remote_code=True)
+                torch.set_float32_matmul_precision(['high', 'highest'][0])
+                _model.to(device)
+                _model.eval()
+                
+                logger.info("RMBG-2.0 model loaded successfully")
+    
+    # Data settings exactly as shown in documentation
+    image_size = (1024, 1024)
+    transform_image = transforms.Compose([
+        transforms.Resize(image_size),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    ])
+    
+    return _model, transform_image
 
 # Optimized image resizing
 def smart_resize(image, max_size=1024):
@@ -334,24 +361,32 @@ def process_image_safe(file):
         img = Image.open(file.stream).convert("RGB")
         original_size = img.size
         
-        # Resize for processing while preserving original dimensions
-        img_resized, original_dimensions = smart_resize(img)
-        
-        # Get model and process image with thread safety
-        model = get_model()
+        # Get model and transform with thread safety
         with _model_lock:
-            result = model(img_resized)
-        
-        # Restore original dimensions if the image was resized
-        if result.size != original_dimensions:
-            result = result.resize(original_dimensions, Image.Resampling.LANCZOS)
+            model, transform_image = get_model_and_transform()
+            
+            # Preprocess image
+            input_tensor = transform_image(img).unsqueeze(0).to(device)
+            
+            # Prediction
+            with torch.no_grad():
+                preds = model(input_tensor)[-1].sigmoid().cpu()
+            
+            # Postprocess
+            pred = preds[0].squeeze()
+            pred_pil = transforms.ToPILImage()(pred)
+            mask = pred_pil.resize(original_size)
+            
+            # Apply mask to original image
+            result = img.copy()
+            result.putalpha(mask)
         
         # Save result with high quality
         img_io = io.BytesIO()
         result.save(img_io, 'PNG', optimize=True, quality=95)
         img_io.seek(0)
         
-        logger.info(f"Processed image: {file.filename}, original size: {original_size}, processed size: {result.size}, format: {file_extension}")
+        logger.info(f"Processed image: {file.filename}, original size: {original_size}, format: {file_extension}")
         return img_io
         
     except Exception as e:

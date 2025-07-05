@@ -9,6 +9,7 @@ source venv/bin/activate
 export FLASK_ENV=production
 export PORT=5000
 export HOST=0.0.0.0
+# Note: HF_TOKEN and other sensitive variables are loaded from .env file by the application
 
 # Start Gunicorn with production configuration
 echo "Starting Background Remover API in production mode..."
