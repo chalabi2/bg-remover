@@ -130,29 +130,7 @@ function ProcessingShowcase() {
         </div>
       </div>
 
-      {/* Interactive Controls */}
-      <div className="flex justify-center space-x-3">
-        {state === 'original' && (
-          <Button
-            onClick={startProcessing}
-            disabled={isAnimating}
-            className="bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-2"
-          >
-            <Play className="w-4 h-4 mr-2" />
-            Remove Background
-          </Button>
-        )}
-        
-        {state === 'processed' && (
-          <Button
-            onClick={reset}
-            variant="outline"
-            className="px-6 py-2"
-          >
-            Try Again
-          </Button>
-        )}
-      </div>
+     
 
       {/* Status indicator */}
       <div className="text-center">
@@ -182,6 +160,29 @@ function ProcessingShowcase() {
             </>
           )}
         </div>
+      </div>
+       {/* Interactive Controls */}
+       <div className="flex justify-center space-x-3">
+        {state === 'original' && (
+          <Button
+            onClick={startProcessing}
+            disabled={isAnimating}
+            className="bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-2"
+          >
+            <Play className="w-4 h-4 mr-2" />
+            Remove Background
+          </Button>
+        )}
+        
+        {state === 'processed' && (
+          <Button
+            onClick={reset}
+            variant="outline"
+            className="px-6 py-2"
+          >
+            Try Again
+          </Button>
+        )}
       </div>
     </div>
   )
