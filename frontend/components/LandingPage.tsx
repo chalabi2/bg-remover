@@ -37,99 +37,95 @@ function ProcessingShowcase() {
         <p className="text-muted-foreground">Click the button to see AI background removal in action</p>
       </div>
       
-      <div className="grid grid-cols-2 gap-4">
-        {/* Before/Original Image */}
-        <div className="space-y-2">
-          <div className="text-sm font-medium text-muted-foreground text-center">Before</div>
-          <div className="aspect-square bg-muted rounded-lg overflow-hidden flex items-center justify-center relative">
-            <div 
-              className={`absolute inset-0 transition-opacity duration-500 ${
-                state === 'original' || state === 'processing' ? 'opacity-100' : 'opacity-0'
-              }`}
-            >
-              <Image
-                src="/supra.jpg"
-                alt="Original car image with background"
-                fill
-                className="object-cover"
-                unoptimized={true}
-              />
-              <div className="absolute inset-0 bg-black/20 flex items-end">
-                <div className="p-3 text-white">
-                  <p className="text-xs font-medium">Original</p>
-                  <p className="text-xs opacity-90">With background</p>
-                </div>
+      {/* Fixed height grid to prevent layout shifts */}
+      <div className="grid grid-cols-2 gap-4 w-full">
+        {/* Before/Original Image - ALWAYS VISIBLE */}
+        <div className="space-y-2 flex-shrink-0 min-w-0">
+          <div className="text-sm font-medium text-muted-foreground text-center h-5 flex items-center justify-center">Before</div>
+          <div className="aspect-square bg-muted rounded-lg overflow-hidden relative w-full">
+            {/* Original image - PERMANENTLY VISIBLE - Never changes or disappears */}
+            <Image
+              src="/supra.jpg"
+              alt="Original car image with background"
+              fill
+              className="object-cover"
+              priority={true}
+            />
+            {/* Permanent status overlay - always shows "Original" */}
+            <div className="absolute inset-0 bg-black/20 flex items-end pointer-events-none">
+              <div className="p-3 text-white">
+                <p className="text-xs font-medium">Original</p>
+                <p className="text-xs opacity-90">With background</p>
               </div>
             </div>
-            <div 
-              className={`absolute inset-0 transition-opacity duration-500 ${
-                state === 'processed' ? 'opacity-100' : 'opacity-0'
-              }`}
-            >
-              <div className="w-full h-full flex items-center justify-center">
-                <div className="text-center p-4">
-                  <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-2 opacity-50" />
-                  <p className="text-sm text-muted-foreground">Original Image</p>
+            {/* Processing overlay - only appears during processing, doesn't hide original */}
+            {state === 'processing' && (
+              <div className="absolute inset-0 bg-black/60 flex items-center justify-center transition-all duration-500">
+                <div className="text-center text-white">
+                  <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
+                  <p className="text-xs font-medium">Analyzing...</p>
                 </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
         
-        {/* After/Processed Image */}
-        <div className="space-y-2">
-          <div className="text-sm font-medium text-muted-foreground text-center">After</div>
-          <div className="aspect-square bg-transparent rounded-lg overflow-hidden flex items-center justify-center relative border-2 border-dashed border-primary/30">
-            {/* Processing State */}
-            <div 
-              className={`absolute inset-0 transition-opacity duration-300 ${
-                state === 'processing' ? 'opacity-100' : 'opacity-0'
-              }`}
-            >
-              <div className="flex items-center justify-center h-full">
-                <div className="text-center">
-                  <Loader2 className="h-8 w-8 text-primary animate-spin mx-auto mb-2" />
-                  <p className="text-sm text-primary">Processing...</p>
+        {/* After/Processed Image - FIXED SIZE */}
+        <div className="space-y-2 flex-shrink-0 min-w-0">
+          <div className="text-sm font-medium text-muted-foreground text-center h-5 flex items-center justify-center">After</div>
+          <div className="aspect-square bg-muted rounded-lg overflow-hidden relative w-full border-2 border-dashed border-primary/30">
+            {/* Base layer to maintain container size - always present */}
+            <div className="absolute inset-0 w-full h-full" />
+            
+            {/* Default State - Ready to process */}
+            {state === 'original' && (
+              <div className="absolute inset-0 flex items-center justify-center bg-muted/30">
+                <div className="text-center p-4">
+                  <Sparkles className="h-8 w-8 text-primary mx-auto mb-2 opacity-50" />
+                  <p className="text-sm text-primary opacity-75">Click to remove background</p>
                 </div>
               </div>
-            </div>
+            )}
             
-            {/* Processed State */}
-            <div 
-              className={`absolute inset-0 transition-opacity duration-500 ${
-                state === 'processed' ? 'opacity-100' : 'opacity-0'
-              }`}
-            >
-              <div className="flex items-center justify-center h-full">
+            {/* Processing State */}
+            {state === 'processing' && (
+              <div className="absolute inset-0 flex items-center justify-center bg-primary/10 transition-all duration-500">
+                <div className="text-center">
+                  <Loader2 className="h-8 w-8 text-primary animate-spin mx-auto mb-2" />
+                  <p className="text-sm text-primary font-medium">Processing with AI...</p>
+                  <p className="text-xs text-primary/70 mt-1">Removing background...</p>
+                </div>
+              </div>
+            )}
+            
+            {/* Processed State - Show the actual result */}
+            {state === 'processed' && (
+              <div className="absolute inset-0 transition-all duration-500">
                 <Image
                   src="/supra-trans.png"
                   alt="Car with background removed"
                   fill
-                  className="object-contain p-4"
-                  unoptimized={true}
+                  className="object-contain p-3"
+                  priority={true}
                 />
-                <div className="absolute bottom-0 left-0 right-0 p-3">
-                  <div className="flex items-center justify-center space-x-2 bg-green-500/90 text-white text-xs font-medium px-2 py-1 rounded">
-                    <Sparkles className="w-3 h-3" />
-                    <span>Background Removed</span>
+                <div className="absolute inset-0 pointer-events-none">
+                  {/* Success indicator */}
+                  <div className="absolute top-3 right-3">
+                    <div className="flex items-center space-x-1 bg-green-500 text-white text-xs font-medium px-2 py-1 rounded-full shadow-lg animate-in fade-in slide-in-from-top-2 duration-700">
+                      <Sparkles className="w-3 h-3" />
+                      <span>Done!</span>
+                    </div>
+                  </div>
+                  {/* Bottom overlay */}
+                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/40 to-transparent p-3">
+                    <div className="text-white text-center">
+                      <p className="text-xs font-medium">Background Removed</p>
+                      <p className="text-xs opacity-90">Ready for download</p>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-            
-            {/* Default State */}
-            <div 
-              className={`absolute inset-0 transition-opacity duration-300 ${
-                state === 'original' ? 'opacity-100' : 'opacity-0'
-              }`}
-            >
-              <div className="flex items-center justify-center h-full">
-                <div className="text-center p-4">
-                  <Sparkles className="h-8 w-8 text-primary mx-auto mb-2" />
-                  <p className="text-sm text-primary">Background Removed</p>
-                </div>
-              </div>
-            </div>
+            )}
           </div>
         </div>
       </div>
