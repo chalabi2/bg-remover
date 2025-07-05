@@ -188,7 +188,7 @@ export function LandingPage() {
         <div className="text-center text-muted-foreground text-sm space-y-2">
           <p>Powered by RMBG-2.0 AI model from BRIA AI</p>
           <p>This is a free, open-source tool for educational and personal use only.</p>
-          <p className="text-xs">Not licensed for commercial use. Please respect the model's terms of service.</p>
+          <p className="text-xs">Not licensed for commercial use. Please respect the model&apos;s terms of service.</p>
         </div>
       </footer>
     </div>
