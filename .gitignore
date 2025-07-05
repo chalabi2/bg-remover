@@ -1,1 +1,4 @@
 node_modules
+backend/metadata
+backend/uploads
+backend/processed
