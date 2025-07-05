@@ -1,36 +1,40 @@
 import { AuthButtons } from "./AuthButtons"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
-import { ArrowRight, Sparkles, Zap, Shield, Upload, Loader2 } from "lucide-react"
+import { ArrowRight, Sparkles, Zap, Shield, Upload, Loader2, Play } from "lucide-react"
 import { signIn } from "next-auth/react"
-import { useState, useEffect } from "react"
+import { useState, useCallback } from "react"
 
 // Processing animation states
 type ProcessingState = 'original' | 'processing' | 'processed'
 
 function ProcessingShowcase() {
   const [state, setState] = useState<ProcessingState>('original')
+  const [isAnimating, setIsAnimating] = useState(false)
   
-  useEffect(() => {
-    const cycle = () => {
-      setState('original')
-      setTimeout(() => setState('processing'), 2000)
-      setTimeout(() => setState('processed'), 4000)
-      setTimeout(() => setState('original'), 6000)
-    }
+  const startProcessing = useCallback(async () => {
+    if (isAnimating) return
     
-    // Start the cycle
-    cycle()
-    const interval = setInterval(cycle, 8000)
+    setIsAnimating(true)
+    setState('processing')
     
-    return () => clearInterval(interval)
-  }, [])
+    // Simulate processing time
+    setTimeout(() => {
+      setState('processed')
+      setIsAnimating(false)
+    }, 2500)
+  }, [isAnimating])
+  
+  const reset = useCallback(() => {
+    if (isAnimating) return
+    setState('original')
+  }, [isAnimating])
   
   return (
     <div className="space-y-6">
       <div className="text-center">
-        <h3 className="text-lg font-semibold text-foreground mb-2">See the Magic</h3>
-        <p className="text-muted-foreground">Watch as AI removes backgrounds in real-time</p>
+        <h3 className="text-lg font-semibold text-foreground mb-2">Interactive Demo</h3>
+        <p className="text-muted-foreground">Click the button to see AI background removal in action</p>
       </div>
       
       <div className="grid grid-cols-2 gap-4">
@@ -38,18 +42,37 @@ function ProcessingShowcase() {
         <div className="space-y-2">
           <div className="text-sm font-medium text-muted-foreground text-center">Before</div>
           <div className="aspect-square bg-muted rounded-lg overflow-hidden flex items-center justify-center relative">
-            {state === 'original' || state === 'processing' ? (
-              <div className="w-full h-full bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/20 dark:to-purple-900/20 flex items-center justify-center">
-                <div className="w-24 h-32 bg-orange-200 dark:bg-orange-800 rounded-lg flex items-center justify-center">
-                  <div className="w-12 h-12 bg-orange-400 dark:bg-orange-600 rounded-full"></div>
+            <div 
+              className={`absolute inset-0 transition-opacity duration-500 ${
+                state === 'original' || state === 'processing' ? 'opacity-100' : 'opacity-0'
+              }`}
+            >
+              <Image
+                src="/supra.jpg"
+                alt="Original car image with background"
+                fill
+                className="object-cover"
+                unoptimized={true}
+              />
+              <div className="absolute inset-0 bg-black/20 flex items-end">
+                <div className="p-3 text-white">
+                  <p className="text-xs font-medium">Original</p>
+                  <p className="text-xs opacity-90">With background</p>
                 </div>
               </div>
-            ) : (
-              <div className="text-center p-4">
-                <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                <p className="text-sm text-muted-foreground">Your Image</p>
+            </div>
+            <div 
+              className={`absolute inset-0 transition-opacity duration-500 ${
+                state === 'processed' ? 'opacity-100' : 'opacity-0'
+              }`}
+            >
+              <div className="w-full h-full flex items-center justify-center">
+                <div className="text-center p-4">
+                  <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-2 opacity-50" />
+                  <p className="text-sm text-muted-foreground">Original Image</p>
+                </div>
               </div>
-            )}
+            </div>
           </div>
         </div>
         
@@ -57,30 +80,96 @@ function ProcessingShowcase() {
         <div className="space-y-2">
           <div className="text-sm font-medium text-muted-foreground text-center">After</div>
           <div className="aspect-square bg-transparent rounded-lg overflow-hidden flex items-center justify-center relative border-2 border-dashed border-primary/30">
-            {state === 'processing' ? (
-              <div className="flex items-center justify-center">
-                <Loader2 className="h-8 w-8 text-primary animate-spin" />
+            {/* Processing State */}
+            <div 
+              className={`absolute inset-0 transition-opacity duration-300 ${
+                state === 'processing' ? 'opacity-100' : 'opacity-0'
+              }`}
+            >
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center">
+                  <Loader2 className="h-8 w-8 text-primary animate-spin mx-auto mb-2" />
+                  <p className="text-sm text-primary">Processing...</p>
+                </div>
               </div>
-            ) : state === 'processed' ? (
-              <div className="w-24 h-32 bg-transparent flex items-center justify-center">
-                <div className="w-12 h-12 bg-orange-400 dark:bg-orange-600 rounded-full shadow-lg"></div>
+            </div>
+            
+            {/* Processed State */}
+            <div 
+              className={`absolute inset-0 transition-opacity duration-500 ${
+                state === 'processed' ? 'opacity-100' : 'opacity-0'
+              }`}
+            >
+              <div className="flex items-center justify-center h-full">
+                <Image
+                  src="/supra-trans.png"
+                  alt="Car with background removed"
+                  fill
+                  className="object-contain p-4"
+                  unoptimized={true}
+                />
+                <div className="absolute bottom-0 left-0 right-0 p-3">
+                  <div className="flex items-center justify-center space-x-2 bg-green-500/90 text-white text-xs font-medium px-2 py-1 rounded">
+                    <Sparkles className="w-3 h-3" />
+                    <span>Background Removed</span>
+                  </div>
+                </div>
               </div>
-            ) : (
-              <div className="text-center p-4">
-                <Sparkles className="h-8 w-8 text-primary mx-auto mb-2" />
-                <p className="text-sm text-primary">Background Removed</p>
+            </div>
+            
+            {/* Default State */}
+            <div 
+              className={`absolute inset-0 transition-opacity duration-300 ${
+                state === 'original' ? 'opacity-100' : 'opacity-0'
+              }`}
+            >
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center p-4">
+                  <Sparkles className="h-8 w-8 text-primary mx-auto mb-2" />
+                  <p className="text-sm text-primary">Background Removed</p>
+                </div>
               </div>
-            )}
+            </div>
           </div>
         </div>
       </div>
 
+      {/* Interactive Controls */}
+      <div className="flex justify-center space-x-3">
+        {state === 'original' && (
+          <Button
+            onClick={startProcessing}
+            disabled={isAnimating}
+            className="bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-2"
+          >
+            <Play className="w-4 h-4 mr-2" />
+            Remove Background
+          </Button>
+        )}
+        
+        {state === 'processed' && (
+          <Button
+            onClick={reset}
+            variant="outline"
+            className="px-6 py-2"
+          >
+            Try Again
+          </Button>
+        )}
+      </div>
+
       {/* Status indicator */}
       <div className="text-center">
-        <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-sm">
+        <div className={`inline-flex items-center space-x-2 px-3 py-1 rounded-full text-sm transition-all duration-300 ${
+          state === 'processing' 
+            ? 'bg-primary/20 text-primary' 
+            : state === 'processed'
+            ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400'
+            : 'bg-muted text-muted-foreground'
+        }`}>
           {state === 'original' && (
             <>
-              <div className="w-2 h-2 bg-primary rounded-full"></div>
+              <div className="w-2 h-2 bg-muted-foreground rounded-full"></div>
               <span>Ready to process</span>
             </>
           )}
@@ -169,7 +258,7 @@ export function LandingPage() {
               </div>
             </div>
 
-            {/* Right Side - Animated Processing Demo */}
+            {/* Right Side - Interactive Processing Demo */}
             <div className="relative">
               <div className="bg-card rounded-2xl shadow-2xl p-8 border border-border">
                 <ProcessingShowcase />

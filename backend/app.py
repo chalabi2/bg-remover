@@ -1,4 +1,4 @@
-from flask import Flask, request, send_file, abort, jsonify
+from flask import Flask, request, send_file, abort, jsonify, Response
 from flask_cors import CORS
 from PIL import Image
 import io
@@ -205,6 +205,36 @@ def schedule_cleanup():
         time.sleep(CLEANUP_INTERVAL)
         cleanup_old_files()
 
+# Cleanup orphaned processing states on startup
+def cleanup_orphaned_processing_states():
+    """Reset any images stuck in 'processing' state on server startup"""
+    logger.info("Cleaning up orphaned processing states...")
+    
+    try:
+        for metadata_file in os.listdir(METADATA_FOLDER):
+            if metadata_file.endswith('.json'):
+                user_id = metadata_file[:-5]  # Remove .json extension
+                metadata = load_user_metadata(user_id)
+                
+                orphaned_count = 0
+                for file_id, file_data in metadata.items():
+                    if file_data.get('status') == 'processing':
+                        # Reset to uploaded state
+                        metadata[file_id]['status'] = 'uploaded'
+                        metadata[file_id]['processed'] = False
+                        orphaned_count += 1
+                        logger.info(f"Reset orphaned processing state for image {file_id} (user: {user_id})")
+                
+                if orphaned_count > 0:
+                    save_user_metadata(user_id, metadata)
+                    logger.info(f"Reset {orphaned_count} orphaned processing states for user {user_id}")
+                    
+    except Exception as e:
+        logger.error(f"Error cleaning up orphaned processing states: {str(e)}")
+
+# Call cleanup on startup
+cleanup_orphaned_processing_states()
+
 # Start cleanup thread
 cleanup_thread = threading.Thread(target=schedule_cleanup, daemon=True)
 cleanup_thread.start()
@@ -273,6 +303,11 @@ CORS(app, resources={
     r"/health": {
         "origins": "*",  # Allow health checks from anywhere
         "methods": ["GET", "OPTIONS"]
+    },
+    r"/process-progress/*": {
+        "origins": [f"https://{domain}" for domain in ALLOWED_DOMAINS] + [f"http://{domain}" for domain in ALLOWED_DOMAINS] + ["https://*.vercel.app"],
+        "methods": ["GET", "OPTIONS"],
+        "allow_headers": ["Content-Type", "X-User-ID", "Origin", "Referer", "Cache-Control"]
     }
 })
 
@@ -338,35 +373,49 @@ def load_model():
     return model, transform_image
 
 # Optimized image resizing
-def smart_resize(image, max_size=1024):
+def smart_resize(image, max_size=1024, preserve_aspect=True):
     """Resize image intelligently to optimize processing speed while maintaining quality"""
     width, height = image.size
     
     # If image is already small, don't resize
     if max(width, height) <= max_size:
-        return image, image.size
+        logger.info(f"Image already optimal size: {width}x{height}")
+        return image, (width, height)
     
     # Calculate new dimensions
-    if width > height:
-        new_width = max_size
-        new_height = int(height * max_size / width)
+    if preserve_aspect:
+        if width > height:
+            new_width = max_size
+            new_height = int(height * max_size / width)
+        else:
+            new_height = max_size
+            new_width = int(width * max_size / height)
     else:
-        new_height = max_size
-        new_width = int(width * max_size / height)
+        new_width = new_height = max_size
+    
+    logger.info(f"Resizing image from {width}x{height} to {new_width}x{new_height}")
     
     # Resize using high-quality resampling
     resized = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
     return resized, (width, height)
 
 def process_image_safe(image_path):
-    """Process image following exact RMBG-2.0 recommendations"""
+    """Process image following optimized RMBG-2.0 workflow"""
     try:
         # Load model if not already loaded
         model, transform_image = load_model()
         
-        # Load image exactly as recommended
-        image = Image.open(image_path).convert("RGB")
-        input_images = transform_image(image).unsqueeze(0).to(device)
+        # Load and optimize image
+        logger.info(f"Loading image: {image_path}")
+        original_image = Image.open(image_path).convert("RGB")
+        original_size = original_image.size
+        
+        # Smart resize for faster processing
+        processing_image, original_dimensions = smart_resize(original_image, max_size=1024)
+        
+        # Process the resized image
+        logger.info("Starting background removal processing...")
+        input_images = transform_image(processing_image).unsqueeze(0).to(device)
         
         # Prediction exactly as recommended
         with torch.no_grad():
@@ -375,20 +424,91 @@ def process_image_safe(image_path):
         # Post-process exactly as recommended
         pred = preds[0].squeeze()
         pred_pil = transforms.ToPILImage()(pred)
-        mask = pred_pil.resize(image.size)
-        image.putalpha(mask)
         
-        # Save result to BytesIO
+        # Resize mask back to processing image size, then to original size
+        mask = pred_pil.resize(processing_image.size, Image.Resampling.LANCZOS)
+        
+        # If we resized the image, resize mask back to original dimensions
+        if original_dimensions != processing_image.size:
+            mask = mask.resize(original_dimensions, Image.Resampling.LANCZOS)
+            logger.info(f"Resized mask back to original dimensions: {original_dimensions}")
+        
+        # Apply mask to original image (resized to match mask if needed)
+        final_image = original_image
+        if original_image.size != mask.size:
+            final_image = original_image.resize(mask.size, Image.Resampling.LANCZOS)
+        
+        final_image.putalpha(mask)
+        
+        # Save result to BytesIO with optimization
         img_io = io.BytesIO()
-        image.save(img_io, 'PNG', optimize=True)
+        final_image.save(img_io, 'PNG', optimize=True, compress_level=6)
         img_io.seek(0)
         
-        logger.info(f"Successfully processed image: {image_path}")
+        logger.info(f"Successfully processed image: {image_path} (original: {original_size}, processed: {final_image.size})")
         return img_io
         
     except Exception as e:
         logger.error(f"Error processing image {image_path}: {str(e)}")
         raise
+
+@app.route('/process-progress/<file_id>')
+@require_domain
+@require_user_auth
+def process_progress(file_id):
+    """Server-Sent Events endpoint for processing progress"""
+    def generate_progress():
+        user_id = get_user_id()
+        metadata = load_user_metadata(user_id)
+        
+        if file_id not in metadata:
+            yield f"data: {json.dumps({'error': 'Image not found'})}\n\n"
+            return
+        
+        # Send initial status
+        yield f"data: {json.dumps({'status': 'starting', 'progress': 0})}\n\n"
+        
+        # Monitor the image status
+        max_wait = 300  # 5 minutes max
+        wait_time = 0
+        
+        while wait_time < max_wait:
+            time.sleep(1)
+            wait_time += 1
+            
+            # Reload metadata to get current status
+            metadata = load_user_metadata(user_id)
+            if file_id not in metadata:
+                yield f"data: {json.dumps({'error': 'Image not found'})}\n\n"
+                break
+            
+            status = metadata[file_id]['status']
+            processed = metadata[file_id].get('processed', False)
+            
+            if status == 'processing':
+                # Estimate progress based on time (rough estimation)
+                estimated_progress = min(90, (wait_time / 30) * 100)  # Estimate 30 seconds max
+                yield f"data: {json.dumps({'status': 'processing', 'progress': estimated_progress})}\n\n"
+            elif status == 'completed':
+                yield f"data: {json.dumps({'status': 'completed', 'progress': 100, 'processed': processed})}\n\n"
+                break
+            elif status == 'error':
+                yield f"data: {json.dumps({'status': 'error', 'progress': 0})}\n\n"
+                break
+        
+        if wait_time >= max_wait:
+            yield f"data: {json.dumps({'status': 'timeout', 'progress': 0})}\n\n"
+    
+    return Response(
+        generate_progress(),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Headers': 'Cache-Control'
+        }
+    )
 
 # Health check endpoint
 @app.route('/health', methods=['GET'])

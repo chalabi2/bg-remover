@@ -45,6 +45,78 @@ export interface ImageManagerActions {
   refreshImages: () => void;
 }
 
+// Progress tracking hook for real-time updates with reconnection
+export function useProcessingProgress(imageId: string | null) {
+  const [progress, setProgress] = useState(0);
+  const [status, setStatus] = useState<'idle' | 'starting' | 'processing' | 'completed' | 'error'>('idle');
+  const [reconnectAttempts, setReconnectAttempts] = useState(0);
+  const { data: session } = useSession();
+  const maxReconnectAttempts = 5;
+  
+  useEffect(() => {
+    if (!imageId || !session?.user?.email) return;
+    
+    let eventSource: EventSource | null = null;
+    let reconnectTimer: NodeJS.Timeout | null = null;
+    
+    const connectSSE = () => {
+      const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://backend-rmbg.jchalabi.xyz';
+      eventSource = new EventSource(`${BACKEND_URL}/process-progress/${imageId}`, {
+        withCredentials: false
+      });
+      
+      eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.error) {
+            setStatus('error');
+            setProgress(0);
+            return;
+          }
+          
+          setStatus(data.status);
+          setProgress(data.progress || 0);
+          
+          // Reset reconnection attempts on successful message
+          setReconnectAttempts(0);
+          
+          if (data.status === 'completed' || data.status === 'error') {
+            eventSource?.close();
+          }
+        } catch (error) {
+          console.error('Error parsing SSE data:', error);
+        }
+      };
+      
+      eventSource.onerror = (error) => {
+        console.error('SSE error:', error);
+        eventSource?.close();
+        
+        // Attempt reconnection if under max attempts
+        if (reconnectAttempts < maxReconnectAttempts) {
+          const backoffTime = Math.min(1000 * Math.pow(2, reconnectAttempts), 10000);
+          reconnectTimer = setTimeout(() => {
+            console.log(`Reconnecting SSE (attempt ${reconnectAttempts + 1}/${maxReconnectAttempts})`);
+            setReconnectAttempts(prev => prev + 1);
+          }, backoffTime);
+        } else {
+          setStatus('error');
+          console.error('Max SSE reconnection attempts reached');
+        }
+      };
+    };
+    
+    connectSSE();
+    
+    return () => {
+      eventSource?.close();
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+    };
+  }, [imageId, session?.user?.email, reconnectAttempts]);
+  
+  return { progress, status, reconnectAttempts };
+}
+
 export function useImageManager(): ImageManagerState & ImageManagerActions {
   const { data: session } = useSession();
   const queryClient = useQueryClient();

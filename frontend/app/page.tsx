@@ -9,6 +9,7 @@ import { ImageGrid } from '@/components/ImageGrid'
 import { ImageToolbar } from '@/components/ImageToolbar'
 import { ImageViewer } from '@/components/ImageViewer'
 import { AuthGuard } from '@/components/AuthGuard'
+import { ProcessingStateRecovery } from '@/components/ProcessingStateRecovery'
 
 // Create a client
 const queryClient = new QueryClient({
@@ -58,6 +59,9 @@ function BackgroundRemoverApp() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
+      {/* Processing State Recovery */}
+      <ProcessingStateRecovery />
+      
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Upload Section */}
         <div className="mb-8">
